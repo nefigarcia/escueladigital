@@ -83,7 +83,9 @@ export default function EstudiantesPage() {
   )
 
   const handleAddStudent = async () => {
-    if (!newStudent.firstName || !newStudent.lastName || !newStudent.studentIdNumber || !studentsRef) {
+    const { firstName, lastName, studentIdNumber } = newStudent;
+
+    if (!firstName.trim() || !lastName.trim() || !studentIdNumber.trim()) {
       toast({
         variant: "destructive",
         title: "Campos incompletos",
@@ -92,9 +94,23 @@ export default function EstudiantesPage() {
       return
     }
 
+    if (!studentsRef) {
+      toast({
+        variant: "destructive",
+        title: "Error de Conexión",
+        description: "La base de datos no está disponible en este momento. Intente de nuevo.",
+      })
+      return
+    }
+
     try {
       await addDocumentNonBlocking(studentsRef, {
-        ...newStudent,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        studentIdNumber: studentIdNumber.trim(),
+        gradeLevel: newStudent.gradeLevel.trim(),
+        address: newStudent.address.trim(),
+        guardianName: newStudent.guardianName.trim(),
         guardianIds: [],
         enrollmentDate: new Date().toISOString().split('T')[0],
         createdAt: serverTimestamp(),
@@ -114,7 +130,7 @@ export default function EstudiantesPage() {
       
       toast({
         title: "Estudiante registrado",
-        description: `${newStudent.firstName} ha sido añadido exitosamente.`,
+        description: `${firstName} ha sido añadido exitosamente.`,
       })
     } catch (e) {
       toast({
