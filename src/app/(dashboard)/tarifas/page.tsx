@@ -1,11 +1,9 @@
-
 "use client"
 
 import * as React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Plus, Settings2, Trash2, Edit2, Wallet } from "lucide-react"
-import { MOCK_FEES, Fee } from "@/lib/mock-data"
 import { Badge } from "@/components/ui/badge"
 import { 
   Dialog, 
@@ -20,37 +18,48 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase"
+import { collection, doc, serverTimestamp } from "firebase/firestore"
 
 export default function TarifasPage() {
-  const [fees, setFees] = React.useState<Fee[]>(MOCK_FEES)
+  const { firestore } = useFirestore()
+  const feeTypesRef = useMemoFirebase(() => collection(firestore, "fee_types"), [firestore])
+  const { data: fees, isLoading } = useCollection(feeTypesRef)
+
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false)
-  const [newFee, setNewFee] = React.useState<Partial<Fee>>({
+  const [newFee, setNewFee] = React.useState({
     name: "",
-    amount: 0,
-    type: "mensualidad",
+    baseAmount: 0,
+    currency: "MXN",
   })
 
-  const handleAddFee = () => {
-    if (!newFee.name || !newFee.amount) return
+  const handleAddFee = async () => {
+    if (!newFee.name || !newFee.baseAmount) return
 
-    const fee: Fee = {
-      id: `f-${Math.random().toString(36).substr(2, 5)}`,
-      name: newFee.name,
-      amount: newFee.amount,
-      type: newFee.type as any,
+    try {
+      await addDocumentNonBlocking(feeTypesRef, {
+        ...newFee,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+      setIsAddDialogOpen(false)
+      setNewFee({ name: "", baseAmount: 0, currency: "MXN" })
+      toast({
+        title: "Tarifa creada",
+        description: `Se ha añadido ${newFee.name} al catálogo.`,
+      })
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo crear la tarifa.",
+      })
     }
-
-    setFees([...fees, fee])
-    setIsAddDialogOpen(false)
-    setNewFee({ name: "", amount: 0, type: "mensualidad" })
-    toast({
-      title: "Tarifa creada",
-      description: `Se ha añadido ${fee.name} al catálogo.`,
-    })
   }
 
   const handleDeleteFee = (id: string) => {
-    setFees(fees.filter(f => f.id !== id))
+    deleteDocumentNonBlocking(doc(firestore, "fee_types", id))
     toast({
       title: "Tarifa eliminada",
       description: "El concepto de cobro ha sido removido.",
@@ -87,28 +96,26 @@ export default function TarifasPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Tipo</Label>
+                  <Label>Moneda</Label>
                   <Select 
-                    value={newFee.type} 
-                    onValueChange={(v) => setNewFee({...newFee, type: v as any})}
+                    value={newFee.currency} 
+                    onValueChange={(v) => setNewFee({...newFee, currency: v})}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="mensualidad">Mensualidad</SelectItem>
-                      <SelectItem value="inscripcion">Inscripción</SelectItem>
-                      <SelectItem value="materiales">Materiales</SelectItem>
-                      <SelectItem value="otros">Otros</SelectItem>
+                      <SelectItem value="MXN">MXN</SelectItem>
+                      <SelectItem value="USD">USD</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Monto (MXN)</Label>
+                  <Label>Monto Base</Label>
                   <Input 
                     type="number" 
-                    value={newFee.amount}
-                    onChange={(e) => setNewFee({...newFee, amount: parseFloat(e.target.value)})}
+                    value={newFee.baseAmount}
+                    onChange={(e) => setNewFee({...newFee, baseAmount: parseFloat(e.target.value)})}
                   />
                 </div>
               </div>
@@ -122,19 +129,21 @@ export default function TarifasPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {fees.map((fee) => (
+        {isLoading ? (
+          <p className="col-span-full text-center py-12">Cargando tarifas...</p>
+        ) : fees?.map((fee) => (
           <Card key={fee.id} className="relative group overflow-hidden border-l-4 border-l-primary hover:shadow-lg transition-all">
             <CardHeader>
               <div className="flex justify-between items-start">
-                <Badge className="mb-2 capitalize" variant="outline">{fee.type}</Badge>
+                <Badge className="mb-2" variant="outline">{fee.isActive ? 'Activo' : 'Inactivo'}</Badge>
                 <Wallet className="h-5 w-5 text-muted-foreground/50" />
               </div>
               <CardTitle className="font-headline text-xl">{fee.name}</CardTitle>
-              <CardDescription>Costo estándar por ciclo escolar 2024-2025.</CardDescription>
+              <CardDescription>Costo estándar por ciclo escolar.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-primary">
-                ${fee.amount.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MXN</span>
+                ${fee.baseAmount.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">{fee.currency}</span>
               </div>
             </CardContent>
             <CardFooter className="bg-muted/30 pt-4 flex justify-end gap-2">
@@ -156,7 +165,7 @@ export default function TarifasPage() {
         <button className="flex flex-col items-center justify-center border-2 border-dashed border-muted rounded-lg p-12 text-muted-foreground hover:border-primary hover:text-primary transition-all group">
           <Settings2 className="h-12 w-12 mb-4 group-hover:rotate-45 transition-transform" />
           <span className="font-medium">Personalizar Catálogo</span>
-          <p className="text-xs mt-2 text-center">Añade categorías personalizadas para eventos especiales o cooperativas.</p>
+          <p className="text-xs mt-2 text-center">Añade categorías personalizadas para eventos especiales.</p>
         </button>
       </div>
     </div>

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -49,65 +48,74 @@ import {
   DialogTrigger 
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { MOCK_STUDENTS, Student } from "@/lib/mock-data"
 import { toast } from "@/hooks/use-toast"
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase"
+import { collection, doc, serverTimestamp } from "firebase/firestore"
 
 export default function EstudiantesPage() {
-  const [students, setStudents] = React.useState<Student[]>(MOCK_STUDENTS)
+  const { firestore } = useFirestore()
+  const studentsRef = useMemoFirebase(() => collection(firestore, "students"), [firestore])
+  const { data: students, isLoading } = useCollection(studentsRef)
+  
   const [searchTerm, setSearchTerm] = React.useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false)
   
   const [newStudent, setNewStudent] = React.useState({
-    name: "",
-    idNumber: "",
-    curp: "",
-    grade: "1º A",
-    guardianName: "",
-    guardianPhone: "",
-    guardianEmail: "",
+    firstName: "",
+    lastName: "",
+    studentIdNumber: "",
+    gradeLevel: "1ro Primaria",
+    address: "",
   })
 
-  const filteredStudents = students.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.idNumber.includes(searchTerm)
+  const filteredStudents = (students || []).filter(s => 
+    `${s.firstName} ${s.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    s.studentIdNumber.includes(searchTerm)
   )
 
-  const handleAddStudent = () => {
-    if (!newStudent.name || !newStudent.idNumber) {
+  const handleAddStudent = async () => {
+    if (!newStudent.firstName || !newStudent.lastName || !newStudent.studentIdNumber) {
       toast({
         variant: "destructive",
         title: "Campos incompletos",
-        description: "Por favor llena el nombre y el ID del estudiante.",
+        description: "Por favor llena los nombres y la matrícula del estudiante.",
       })
       return
     }
 
-    const student: Student = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...newStudent,
-      outstandingBalance: 0,
-    }
+    try {
+      await addDocumentNonBlocking(studentsRef, {
+        ...newStudent,
+        guardianIds: [],
+        enrollmentDate: new Date().toISOString().split('T')[0],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
 
-    setStudents([student, ...students])
-    setIsAddDialogOpen(false)
-    setNewStudent({
-      name: "",
-      idNumber: "",
-      curp: "",
-      grade: "1º A",
-      guardianName: "",
-      guardianPhone: "",
-      guardianEmail: "",
-    })
-    
-    toast({
-      title: "Estudiante registrado",
-      description: `${student.name} ha sido añadido exitosamente.`,
-    })
+      setIsAddDialogOpen(false)
+      setNewStudent({
+        firstName: "",
+        lastName: "",
+        studentIdNumber: "",
+        gradeLevel: "1ro Primaria",
+        address: "",
+      })
+      
+      toast({
+        title: "Estudiante registrado",
+        description: `${newStudent.firstName} ha sido añadido exitosamente.`,
+      })
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo registrar al estudiante.",
+      })
+    }
   }
 
   const handleDeleteStudent = (id: string) => {
-    setStudents(students.filter(s => s.id !== id))
+    deleteDocumentNonBlocking(doc(firestore, "students", id))
     toast({
       title: "Estudiante eliminado",
       description: "El registro ha sido removido del sistema.",
@@ -132,72 +140,53 @@ export default function EstudiantesPage() {
             <DialogHeader>
               <DialogTitle>Nuevo Registro Estudiantil</DialogTitle>
               <DialogDescription>
-                Ingresa los datos básicos del alumno y su tutor.
+                Ingresa los datos básicos del alumno.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nombre Completo</Label>
+                  <Label htmlFor="firstName">Nombres</Label>
                   <Input 
-                    id="name" 
-                    value={newStudent.name}
-                    onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
+                    id="firstName" 
+                    value={newStudent.firstName}
+                    onChange={(e) => setNewStudent({...newStudent, firstName: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="idNumber">Matrícula / ID</Label>
+                  <Label htmlFor="lastName">Apellidos</Label>
                   <Input 
-                    id="idNumber" 
-                    value={newStudent.idNumber}
-                    onChange={(e) => setNewStudent({...newStudent, idNumber: e.target.value})}
+                    id="lastName" 
+                    value={newStudent.lastName}
+                    onChange={(e) => setNewStudent({...newStudent, lastName: e.target.value})}
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="curp">CURP</Label>
+                  <Label htmlFor="studentIdNumber">Matrícula / ID</Label>
                   <Input 
-                    id="curp" 
-                    value={newStudent.curp}
-                    onChange={(e) => setNewStudent({...newStudent, curp: e.target.value})}
+                    id="studentIdNumber" 
+                    value={newStudent.studentIdNumber}
+                    onChange={(e) => setNewStudent({...newStudent, studentIdNumber: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="grade">Grado</Label>
+                  <Label htmlFor="gradeLevel">Grado</Label>
                   <Input 
-                    id="grade" 
-                    value={newStudent.grade}
-                    onChange={(e) => setNewStudent({...newStudent, grade: e.target.value})}
+                    id="gradeLevel" 
+                    value={newStudent.gradeLevel}
+                    onChange={(e) => setNewStudent({...newStudent, gradeLevel: e.target.value})}
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="guardian">Nombre del Tutor</Label>
+                <Label htmlFor="address">Dirección</Label>
                 <Input 
-                  id="guardian" 
-                  value={newStudent.guardianName}
-                  onChange={(e) => setNewStudent({...newStudent, guardianName: e.target.value})}
+                  id="address" 
+                  value={newStudent.address}
+                  onChange={(e) => setNewStudent({...newStudent, address: e.target.value})}
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Teléfono</Label>
-                  <Input 
-                    id="phone" 
-                    value={newStudent.guardianPhone}
-                    onChange={(e) => setNewStudent({...newStudent, guardianPhone: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
-                    type="email"
-                    value={newStudent.guardianEmail}
-                    onChange={(e) => setNewStudent({...newStudent, guardianEmail: e.target.value})}
-                  />
-                </div>
               </div>
             </div>
             <DialogFooter>
@@ -235,48 +224,32 @@ export default function EstudiantesPage() {
                   <TableHead className="font-bold text-foreground">ID</TableHead>
                   <TableHead className="font-bold text-foreground">Estudiante</TableHead>
                   <TableHead className="font-bold text-foreground">Grado</TableHead>
-                  <TableHead className="font-bold text-foreground">Tutor</TableHead>
-                  <TableHead className="font-bold text-foreground">Estado de Cuenta</TableHead>
+                  <TableHead className="font-bold text-foreground">Inscripción</TableHead>
                   <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredStudents.length > 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">Cargando...</TableCell>
+                  </TableRow>
+                ) : filteredStudents.length > 0 ? (
                   filteredStudents.map((student) => (
                     <TableRow key={student.id} className="hover:bg-accent/5 transition-colors">
-                      <TableCell className="font-medium text-primary">{student.idNumber}</TableCell>
+                      <TableCell className="font-medium text-primary">{student.studentIdNumber}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-semibold text-foreground">{student.name}</span>
-                          <span className="text-xs text-muted-foreground uppercase">{student.curp}</span>
+                          <span className="font-semibold text-foreground">{student.firstName} {student.lastName}</span>
+                          <span className="text-xs text-muted-foreground uppercase">{student.address}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="font-medium">
-                          {student.grade}
+                          {student.gradeLevel}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm font-medium">{student.guardianName}</span>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {student.guardianPhone}</span>
-                            <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {student.guardianEmail}</span>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {student.outstandingBalance > 0 ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                            <span className="font-bold text-destructive">${student.outstandingBalance} MXN</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                            <span className="font-bold text-emerald-600">Al corriente</span>
-                          </div>
-                        )}
+                      <TableCell className="text-sm text-muted-foreground">
+                        {student.enrollmentDate}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -307,7 +280,7 @@ export default function EstudiantesPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                       No se encontraron estudiantes con ese criterio.
                     </TableCell>
                   </TableRow>
