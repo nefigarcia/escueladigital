@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -17,8 +18,6 @@ import {
   MoreVertical, 
   Edit, 
   Trash2,
-  Phone,
-  Mail,
   Filter,
   Users
 } from "lucide-react"
@@ -26,8 +25,7 @@ import {
   Card, 
   CardContent, 
   CardHeader, 
-  CardTitle,
-  CardDescription 
+  CardTitle 
 } from "@/components/ui/card"
 import {
   DropdownMenu,
@@ -54,7 +52,13 @@ import { collection, doc, serverTimestamp } from "firebase/firestore"
 
 export default function EstudiantesPage() {
   const { firestore } = useFirestore()
-  const studentsRef = useMemoFirebase(() => collection(firestore, "students"), [firestore])
+  
+  // Guard against null firestore during initial load
+  const studentsRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, "students");
+  }, [firestore])
+
   const { data: students, isLoading } = useCollection(studentsRef)
   
   const [searchTerm, setSearchTerm] = React.useState("")
@@ -70,11 +74,11 @@ export default function EstudiantesPage() {
 
   const filteredStudents = (students || []).filter(s => 
     `${s.firstName} ${s.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.studentIdNumber.includes(searchTerm)
+    (s.studentIdNumber && s.studentIdNumber.includes(searchTerm))
   )
 
   const handleAddStudent = async () => {
-    if (!newStudent.firstName || !newStudent.lastName || !newStudent.studentIdNumber) {
+    if (!newStudent.firstName || !newStudent.lastName || !newStudent.studentIdNumber || !studentsRef) {
       toast({
         variant: "destructive",
         title: "Campos incompletos",
@@ -90,6 +94,7 @@ export default function EstudiantesPage() {
         enrollmentDate: new Date().toISOString().split('T')[0],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        outstandingBalance: 0,
       })
 
       setIsAddDialogOpen(false)
@@ -115,6 +120,7 @@ export default function EstudiantesPage() {
   }
 
   const handleDeleteStudent = (id: string) => {
+    if (!firestore) return;
     deleteDocumentNonBlocking(doc(firestore, "students", id))
     toast({
       title: "Estudiante eliminado",

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -23,7 +24,12 @@ import { collection, doc, serverTimestamp } from "firebase/firestore"
 
 export default function TarifasPage() {
   const { firestore } = useFirestore()
-  const feeTypesRef = useMemoFirebase(() => collection(firestore, "fee_types"), [firestore])
+  
+  const feeTypesRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, "fee_types");
+  }, [firestore])
+
   const { data: fees, isLoading } = useCollection(feeTypesRef)
 
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false)
@@ -34,7 +40,7 @@ export default function TarifasPage() {
   })
 
   const handleAddFee = async () => {
-    if (!newFee.name || !newFee.baseAmount) return
+    if (!newFee.name || !newFee.baseAmount || !feeTypesRef) return
 
     try {
       await addDocumentNonBlocking(feeTypesRef, {
@@ -59,6 +65,7 @@ export default function TarifasPage() {
   }
 
   const handleDeleteFee = (id: string) => {
+    if (!firestore) return;
     deleteDocumentNonBlocking(doc(firestore, "fee_types", id))
     toast({
       title: "Tarifa eliminada",
@@ -131,7 +138,7 @@ export default function TarifasPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {isLoading ? (
           <p className="col-span-full text-center py-12">Cargando tarifas...</p>
-        ) : fees?.map((fee) => (
+        ) : fees?.length ? fees.map((fee) => (
           <Card key={fee.id} className="relative group overflow-hidden border-l-4 border-l-primary hover:shadow-lg transition-all">
             <CardHeader>
               <div className="flex justify-between items-start">
@@ -143,7 +150,7 @@ export default function TarifasPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-primary">
-                ${fee.baseAmount.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">{fee.currency}</span>
+                ${fee.baseAmount?.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">{fee.currency}</span>
               </div>
             </CardContent>
             <CardFooter className="bg-muted/30 pt-4 flex justify-end gap-2">
@@ -160,9 +167,16 @@ export default function TarifasPage() {
               </Button>
             </CardFooter>
           </Card>
-        ))}
+        )) : (
+          <div className="col-span-full text-center py-12 text-muted-foreground">
+            No hay tarifas configuradas. Comienza añadiendo una nueva.
+          </div>
+        )}
         
-        <button className="flex flex-col items-center justify-center border-2 border-dashed border-muted rounded-lg p-12 text-muted-foreground hover:border-primary hover:text-primary transition-all group">
+        <button 
+          onClick={() => setIsAddDialogOpen(true)}
+          className="flex flex-col items-center justify-center border-2 border-dashed border-muted rounded-lg p-12 text-muted-foreground hover:border-primary hover:text-primary transition-all group"
+        >
           <Settings2 className="h-12 w-12 mb-4 group-hover:rotate-45 transition-transform" />
           <span className="font-medium">Personalizar Catálogo</span>
           <p className="text-xs mt-2 text-center">Añade categorías personalizadas para eventos especiales.</p>

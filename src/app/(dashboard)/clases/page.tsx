@@ -16,7 +16,6 @@ import {
   Search,
   BookOpen
 } from "lucide-react"
-import { MOCK_SCHEDULES, ClassSchedule } from "@/lib/mock-data"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -31,16 +30,26 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase"
+import { collection, doc, serverTimestamp } from "firebase/firestore"
 
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
 
 export default function ClasesPage() {
-  const [schedules, setSchedules] = React.useState<ClassSchedule[]>(MOCK_SCHEDULES)
+  const { firestore } = useFirestore()
+  
+  const schedulesRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, "schedules");
+  }, [firestore])
+  
+  const { data: schedules, isLoading } = useCollection(schedulesRef)
+
   const [date, setDate] = React.useState<Date | undefined>(new Date())
   const [selectedDay, setSelectedDay] = React.useState("Lunes")
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false)
 
-  const [newClass, setNewClass] = React.useState<Partial<ClassSchedule>>({
+  const [newClass, setNewClass] = React.useState({
     subject: "",
     teacher: "",
     room: "",
@@ -49,43 +58,49 @@ export default function ClasesPage() {
     dayOfWeek: "Lunes",
   })
 
-  const handleAddClass = () => {
-    if (!newClass.subject || !newClass.teacher) return
+  const handleAddClass = async () => {
+    if (!newClass.subject || !newClass.teacher || !schedulesRef) return
 
-    const schedule: ClassSchedule = {
-      id: `s-${Math.random().toString(36).substr(2, 5)}`,
-      subject: newClass.subject,
-      teacher: newClass.teacher,
-      room: newClass.room || "Aula pendiente",
-      startTime: newClass.startTime!,
-      endTime: newClass.endTime!,
-      dayOfWeek: newClass.dayOfWeek!,
-      color: "bg-indigo-100 border-indigo-400 text-indigo-700",
+    try {
+      await addDocumentNonBlocking(schedulesRef, {
+        ...newClass,
+        color: "bg-indigo-100 border-indigo-400 text-indigo-700",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+
+      setIsAddDialogOpen(false)
+      setNewClass({
+        subject: "",
+        teacher: "",
+        room: "",
+        startTime: "08:00",
+        endTime: "09:30",
+        dayOfWeek: "Lunes",
+      })
+      toast({
+        title: "Clase programada",
+        description: `La sesión de ${newClass.subject} ha sido añadida.`,
+      })
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo programar la clase.",
+      })
     }
-
-    setSchedules([...schedules, schedule])
-    setIsAddDialogOpen(false)
-    setNewClass({
-      subject: "",
-      teacher: "",
-      room: "",
-      startTime: "08:00",
-      endTime: "09:30",
-      dayOfWeek: "Lunes",
-    })
-    toast({
-      title: "Clase programada",
-      description: `La sesión de ${schedule.subject} ha sido añadida.`,
-    })
   }
 
   const handleDeleteClass = (id: string) => {
-    setSchedules(schedules.filter(s => s.id !== id))
+    if (!firestore) return;
+    deleteDocumentNonBlocking(doc(firestore, "schedules", id))
     toast({
       title: "Clase removida",
       description: "El horario ha sido actualizado.",
     })
   }
+
+  const dailySchedules = (schedules || []).filter(s => s.dayOfWeek === selectedDay)
 
   return (
     <div className="space-y-6">
@@ -239,7 +254,7 @@ export default function ClasesPage() {
               <Button variant="outline" size="icon" className="h-8 w-8">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-sm font-medium">Semana 4 (Ene 2024)</span>
+              <span className="text-sm font-medium">Semana Actual</span>
               <Button variant="outline" size="icon" className="h-8 w-8">
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -256,8 +271,10 @@ export default function ClasesPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y">
-                {schedules.filter(s => s.dayOfWeek === selectedDay).length > 0 ? (
-                  schedules.filter(s => s.dayOfWeek === selectedDay).map((item) => (
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-20">Cargando agenda...</div>
+                ) : dailySchedules.length > 0 ? (
+                  dailySchedules.map((item) => (
                     <div 
                       key={item.id} 
                       className="group p-6 flex flex-col md:flex-row md:items-center gap-6 hover:bg-muted/30 transition-colors"
@@ -269,7 +286,7 @@ export default function ClasesPage() {
                         <span className="text-sm text-muted-foreground">{item.endTime}</span>
                       </div>
 
-                      <div className={`flex-1 rounded-xl border p-4 ${item.color} shadow-sm group-hover:scale-[1.01] transition-transform`}>
+                      <div className={`flex-1 rounded-xl border p-4 ${item.color || 'bg-muted/10'} shadow-sm group-hover:scale-[1.01] transition-transform`}>
                         <div className="flex justify-between items-start mb-2">
                           <h4 className="font-bold text-lg flex items-center gap-2">
                             <BookOpen className="h-4 w-4" />

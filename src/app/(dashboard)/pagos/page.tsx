@@ -20,27 +20,42 @@ import {
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { MOCK_STUDENTS, MOCK_FEES, MOCK_PAYMENTS, Student, PaymentRecord } from "@/lib/mock-data"
 import { toast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase"
+import { collection, doc, serverTimestamp, query, where, limit } from "firebase/firestore"
 
 export default function PagosPage() {
-  const [students, setStudents] = React.useState<Student[]>(MOCK_STUDENTS)
-  const [payments, setPayments] = React.useState<PaymentRecord[]>(MOCK_PAYMENTS)
-  const [selectedStudentId, setSelectedStudentId] = React.useState<string>("")
-  const [selectedStudent, setSelectedStudent] = React.useState<Student | null>(null)
-  const [selectedFee, setSelectedFee] = React.useState<string>("")
-  const [paymentAmount, setPaymentAmount] = React.useState<string>("")
+  const { firestore } = useFirestore()
+  
+  const studentsRef = useMemoFirebase(() => firestore ? collection(firestore, "students") : null, [firestore])
+  const feeTypesRef = useMemoFirebase(() => firestore ? collection(firestore, "fee_types") : null, [firestore])
+  
+  const { data: students } = useCollection(studentsRef)
+  const { data: fees } = useCollection(feeTypesRef)
 
-  // Pre-fill student when ID is searched or selected
+  const [selectedStudentId, setSelectedStudentId] = React.useState<string>("")
+  const [selectedStudent, setSelectedStudent] = React.useState<any | null>(null)
+  const [selectedFeeId, setSelectedFeeId] = React.useState<string>("")
+  const [paymentAmount, setPaymentAmount] = React.useState<string>("")
+  const [isProcessing, setIsProcessing] = React.useState(false)
+
+  // Subscriptions for payments (per student)
+  const paymentsQuery = useMemoFirebase(() => {
+    if (!firestore || !selectedStudent) return null;
+    return collection(firestore, "students", selectedStudent.id, "payments");
+  }, [firestore, selectedStudent])
+  
+  const { data: payments } = useCollection(paymentsQuery)
+
   const handleSearchStudent = () => {
-    const student = students.find(s => s.idNumber === selectedStudentId)
+    const student = students?.find(s => s.studentIdNumber === selectedStudentId)
     if (student) {
       setSelectedStudent(student)
-      setPaymentAmount(student.outstandingBalance.toString())
+      setPaymentAmount((student.outstandingBalance || 0).toString())
       toast({
         title: "Estudiante encontrado",
-        description: `${student.name} - Saldo: $${student.outstandingBalance} MXN`,
+        description: `${student.firstName} ${student.lastName} - Saldo: $${student.outstandingBalance || 0} MXN`,
       })
     } else {
       setSelectedStudent(null)
@@ -52,47 +67,55 @@ export default function PagosPage() {
     }
   }
 
-  const handleProcessPayment = () => {
-    if (!selectedStudent || !paymentAmount) return
+  const handleProcessPayment = async () => {
+    if (!selectedStudent || !paymentAmount || !firestore) return
+    setIsProcessing(true)
 
     const amount = parseFloat(paymentAmount)
-    const fee = MOCK_FEES.find(f => f.id === selectedFee)
+    const fee = fees?.find(f => f.id === selectedFeeId)
     
-    // Create new payment record
-    const newPayment: PaymentRecord = {
-      id: `p-${Math.random().toString(36).substr(2, 5)}`,
-      studentId: selectedStudent.id,
-      studentName: selectedStudent.name,
-      feeName: fee?.name || "Pago General",
-      amount: amount,
-      date: new Date().toISOString().split('T')[0],
-      status: 'completado',
+    try {
+      // 1. Record payment in subcollection
+      const studentPaymentsRef = collection(firestore, "students", selectedStudent.id, "payments")
+      await addDocumentNonBlocking(studentPaymentsRef, {
+        studentId: selectedStudent.id,
+        studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
+        feeName: fee?.name || "Pago General",
+        amount: amount,
+        paymentDate: serverTimestamp(),
+        paymentMethod: "Tarjeta", // Mocking method for now
+        status: 'completado',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+
+      // 2. Update student balance
+      const studentDocRef = doc(firestore, "students", selectedStudent.id)
+      const currentBalance = selectedStudent.outstandingBalance || 0
+      updateDocumentNonBlocking(studentDocRef, {
+        outstandingBalance: Math.max(0, currentBalance - amount),
+        updatedAt: serverTimestamp(),
+      })
+      
+      toast({
+        title: "Pago Procesado con Éxito",
+        description: `Se ha registrado el pago por $${paymentAmount} MXN.`,
+      })
+
+      // Reset form
+      setSelectedStudent(null)
+      setSelectedStudentId("")
+      setSelectedFeeId("")
+      setPaymentAmount("")
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo procesar el pago.",
+      })
+    } finally {
+      setIsProcessing(false)
     }
-
-    // Update students list (subtract balance)
-    const updatedStudents = students.map(s => {
-      if (s.id === selectedStudent.id) {
-        return {
-          ...s,
-          outstandingBalance: Math.max(0, s.outstandingBalance - amount)
-        }
-      }
-      return s
-    })
-
-    setStudents(updatedStudents)
-    setPayments([newPayment, ...payments])
-    
-    toast({
-      title: "Pago Procesado con Éxito",
-      description: `Se ha registrado el pago por $${paymentAmount} MXN para ${selectedStudent.name}.`,
-    })
-
-    // Reset form
-    setSelectedStudent(null)
-    setSelectedStudentId("")
-    setSelectedFee("")
-    setPaymentAmount("")
   }
 
   return (
@@ -138,20 +161,20 @@ export default function PagosPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Nombre Estudiante</Label>
-                    <Input value={selectedStudent?.name || ""} disabled placeholder="Se llenará automáticamente" />
+                    <Input value={selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : ""} disabled placeholder="Se llenará automáticamente" />
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="fee">Concepto de Pago</Label>
-                    <Select value={selectedFee} onValueChange={setSelectedFee}>
+                    <Select value={selectedFeeId} onValueChange={setSelectedFeeId}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar concepto..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {MOCK_FEES.map(fee => (
-                          <SelectItem key={fee.id} value={fee.id}>{fee.name} - ${fee.amount}</SelectItem>
+                        {fees?.map(fee => (
+                          <SelectItem key={fee.id} value={fee.id}>{fee.name} - ${fee.baseAmount}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -183,9 +206,9 @@ export default function PagosPage() {
                 </div>
               </CardContent>
               <CardFooter className="flex justify-end gap-2 border-t pt-6 bg-muted/20">
-                <Button variant="outline">Cancelar</Button>
-                <Button disabled={!selectedStudent} className="gap-2" onClick={handleProcessPayment}>
-                  <CheckCircle2 className="h-4 w-4" /> Confirmar Pago
+                <Button variant="outline" onClick={() => setSelectedStudent(null)}>Cancelar</Button>
+                <Button disabled={!selectedStudent || isProcessing} className="gap-2" onClick={handleProcessPayment}>
+                  {isProcessing ? "Procesando..." : <><CheckCircle2 className="h-4 w-4" /> Confirmar Pago</>}
                 </Button>
               </CardFooter>
             </Card>
@@ -203,13 +226,13 @@ export default function PagosPage() {
                           <User className="h-6 w-6" />
                         </div>
                         <div>
-                          <p className="font-bold">{selectedStudent.name}</p>
-                          <p className="text-xs opacity-70">Grado: {selectedStudent.grade}</p>
+                          <p className="font-bold">{selectedStudent.firstName} {selectedStudent.lastName}</p>
+                          <p className="text-xs opacity-70">Grado: {selectedStudent.gradeLevel}</p>
                         </div>
                       </div>
                       <div className="pt-4 border-t border-white/20">
                         <p className="text-xs opacity-70 mb-1">SALDO TOTAL PENDIENTE</p>
-                        <p className="text-3xl font-bold">${selectedStudent.outstandingBalance} MXN</p>
+                        <p className="text-3xl font-bold">${selectedStudent.outstandingBalance || 0} MXN</p>
                       </div>
                     </>
                   ) : (
@@ -245,7 +268,7 @@ export default function PagosPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="font-headline">Historial de Transacciones</CardTitle>
-                <CardDescription>Registro histórico de todos los pagos recibidos.</CardDescription>
+                <CardDescription>Registro histórico de los pagos recibidos.</CardDescription>
               </div>
               <Button variant="outline" className="gap-2">
                 <Download className="h-4 w-4" /> Exportar CSV
@@ -256,27 +279,20 @@ export default function PagosPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Referencia</TableHead>
+                      <TableHead>ID</TableHead>
                       <TableHead>Estudiante</TableHead>
                       <TableHead>Concepto</TableHead>
-                      <TableHead>Fecha</TableHead>
                       <TableHead>Monto</TableHead>
                       <TableHead>Estado</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {payments.map((payment) => (
+                    {payments?.map((payment) => (
                       <TableRow key={payment.id}>
-                        <TableCell className="font-mono text-xs text-primary">{payment.id.toUpperCase()}</TableCell>
+                        <TableCell className="font-mono text-xs text-primary">{payment.id.toUpperCase().substring(0, 8)}</TableCell>
                         <TableCell className="font-medium">{payment.studentName}</TableCell>
                         <TableCell>{payment.feeName}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <CalendarIcon className="h-3 w-3" />
-                            {payment.date}
-                          </div>
-                        </TableCell>
                         <TableCell className="font-bold">${payment.amount} MXN</TableCell>
                         <TableCell>
                           <Badge 
@@ -292,7 +308,13 @@ export default function PagosPage() {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )) || (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                          {selectedStudent ? "No se encontraron pagos registrados para este alumno." : "Selecciona un alumno para ver su historial."}
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
