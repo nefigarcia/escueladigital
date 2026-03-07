@@ -1,0 +1,494 @@
+{
+  "entities": {
+    "Student": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Student",
+      "type": "object",
+      "description": "Represents a student enrolled in the school, including personal details and enrollment information.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Student entity."
+        },
+        "studentIdNumber": {
+          "type": "string",
+          "description": "Official student identification number assigned by the school. This ID is used for quick lookups and payment processing."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The student's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The student's last name."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "description": "The student's date of birth.",
+          "format": "date"
+        },
+        "address": {
+          "type": "string",
+          "description": "The student's residential address."
+        },
+        "gradeLevel": {
+          "type": "string",
+          "description": "The current grade level or year the student is enrolled in (e.g., '1ro Primaria', '2do Primaria')."
+        },
+        "enrollmentDate": {
+          "type": "string",
+          "description": "The date when the student was initially enrolled in the school.",
+          "format": "date"
+        },
+        "guardianIds": {
+          "type": "array",
+          "description": "References to Guardians associated with this student. (Relationship: Student N:N Guardian)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the student record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the student record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "studentIdNumber",
+        "firstName",
+        "lastName",
+        "dateOfBirth",
+        "gradeLevel",
+        "enrollmentDate",
+        "guardianIds",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Guardian": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Guardian",
+      "type": "object",
+      "description": "Represents a guardian or contact person for a student.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Guardian entity."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The guardian's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The guardian's last name."
+        },
+        "relationshipToStudent": {
+          "type": "string",
+          "description": "The guardian's relationship to the student (e.g., 'Madre', 'Padre', 'Tío', 'Abuela')."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The guardian's primary phone number."
+        },
+        "email": {
+          "type": "string",
+          "description": "The guardian's email address for communications.",
+          "format": "email"
+        },
+        "address": {
+          "type": "string",
+          "description": "The guardian's residential address. Can be omitted if it's the same as the student's."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the guardian record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the guardian record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "relationshipToStudent",
+        "phoneNumber",
+        "email",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "FeeType": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FeeType",
+      "type": "object",
+      "description": "Defines a generic type of fee that can be charged to students (e.g., tuition, materials).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the FeeType entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the fee type (e.g., 'Matrícula Anual', 'Materiales Primer Grado', 'Actividades Extracurriculares')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of what the fee covers."
+        },
+        "baseAmount": {
+          "type": "number",
+          "description": "The standard base amount for this fee type."
+        },
+        "currency": {
+          "type": "string",
+          "description": "The currency in which the fee is denominated (e.g., 'MXN')."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates if this fee type is currently active and can be assigned to students."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the fee type record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the fee type record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "baseAmount",
+        "currency",
+        "isActive",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "StudentEnrollmentFee": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "StudentEnrollmentFee",
+      "type": "object",
+      "description": "Represents a specific fee assigned to a student for a particular billing period, tracking the amount due and its payment status.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the StudentEnrollmentFee entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to the Student to whom this fee is assigned. (Relationship: Student 1:N StudentEnrollmentFee)"
+        },
+        "feeTypeId": {
+          "type": "string",
+          "description": "Reference to the FeeType that defines this particular fee. (Relationship: FeeType 1:N StudentEnrollmentFee)"
+        },
+        "billingPeriod": {
+          "type": "string",
+          "description": "The billing period or academic cycle for which this fee applies (e.g., 'Ciclo Escolar 2023-2024', 'Enero 2024')."
+        },
+        "amountDue": {
+          "type": "number",
+          "description": "The specific amount owed by the student for this particular fee instance, which may differ from the FeeType's base amount due to discounts."
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "The date by which this fee is expected to be paid.",
+          "format": "date"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current payment status of this fee (e.g., 'Pendiente', 'Pagado', 'Parcialmente Pagado', 'Vencido')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when this student enrollment fee record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when this student enrollment fee record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "feeTypeId",
+        "billingPeriod",
+        "amountDue",
+        "dueDate",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Payment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Payment",
+      "type": "object",
+      "description": "Records an actual payment transaction made by or on behalf of a student.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Payment entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to the Student for whom the payment was made. (Relationship: Student 1:N Payment)"
+        },
+        "paymentDate": {
+          "type": "string",
+          "description": "The date and time when the payment was processed.",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "The total amount of this single payment transaction."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "The method used for the payment (e.g., 'Tarjeta de Crédito', 'Transferencia Bancaria', 'Efectivo', 'Cheque')."
+        },
+        "transactionId": {
+          "type": "string",
+          "description": "An optional external transaction identifier provided by the payment gateway or bank."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional notes or comments regarding the payment."
+        },
+        "recordedByStaffUserId": {
+          "type": "string",
+          "description": "Reference to the StaffUser who recorded or processed this payment. (Relationship: StaffUser 1:N Payment)"
+        },
+        "appliedFeeIds": {
+          "type": "array",
+          "description": "References to the specific StudentEnrollmentFee entities that this payment covers or is partially applied to. (Relationship: Payment N:N StudentEnrollmentFee)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the payment record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the payment record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "paymentDate",
+        "amount",
+        "paymentMethod",
+        "recordedByStaffUserId",
+        "appliedFeeIds",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "StaffUser": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "StaffUser",
+      "type": "object",
+      "description": "Represents an administrative staff member with access to the system, excluding authentication credentials handled by an external system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the StaffUser entity (corresponds to an external authentication system's user ID)."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The staff member's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The staff member's last name."
+        },
+        "email": {
+          "type": "string",
+          "description": "The staff member's email address, used for identification and communication (not authentication).",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "The administrative role of the staff member, defining their permissions within the application (e.g., 'Administrador', 'Contador', 'Secretario')."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates if the staff account is currently active."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the staff user record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the staff user record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "email",
+        "role",
+        "isActive",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/staff_users/{staffId}",
+        "definition": {
+          "entityName": "StaffUser",
+          "schema": {
+            "$ref": "#/backend/entities/StaffUser"
+          },
+          "description": "Stores profile information for administrative staff members. The document ID (`staffId`) corresponds to the Firebase Authentication UID, making it directly queryable for individual staff profiles. Access is typically restricted to authenticated staff and administrators for management. Includes the staff member's 'role' for internal authorization.",
+          "params": [
+            {
+              "name": "staffId",
+              "description": "The unique identifier for the staff user, matching their Firebase Authentication UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/staff_roles/{staffId}",
+        "definition": {
+          "entityName": "StaffUser",
+          "schema": {
+            "$ref": "#/backend/entities/StaffUser"
+          },
+          "description": "Dedicated collection for quick lookup of a staff member's role based on their Firebase Auth UID. This supports 'Authorization Independence' by allowing security rules to check `request.auth.uid` against `{staffId}` and read the 'role' field atomically, without requiring a 'get()' call to the main StaffUser profile. Only the 'role' field is strictly necessary, but schema $ref points to StaffUser for consistency if a full profile is stored here.",
+          "params": [
+            {
+              "name": "staffId",
+              "description": "The unique identifier for the staff user, matching their Firebase Authentication UID, used for role lookup."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/students/{studentId}",
+        "definition": {
+          "entityName": "Student",
+          "schema": {
+            "$ref": "#/backend/entities/Student"
+          },
+          "description": "Stores comprehensive information for each enrolled student. The document ID (`studentId`) serves as the primary identifier. Access is restricted to authorized staff members, enabling 'list' operations for all students.",
+          "params": [
+            {
+              "name": "studentId",
+              "description": "The unique identifier for the student."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/guardians/{guardianId}",
+        "definition": {
+          "entityName": "Guardian",
+          "schema": {
+            "$ref": "#/backend/entities/Guardian"
+          },
+          "description": "Stores contact and relationship information for guardians. Documents are linked to students via `guardianIds` in the Student entity. Access is restricted to authorized staff members.",
+          "params": [
+            {
+              "name": "guardianId",
+              "description": "The unique identifier for the guardian."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/fee_types/{feeTypeId}",
+        "definition": {
+          "entityName": "FeeType",
+          "schema": {
+            "$ref": "#/backend/entities/FeeType"
+          },
+          "description": "Defines various types of fees charged by the school, including their base amounts and descriptions. Access is restricted to authorized staff members, typically those with financial management roles.",
+          "params": [
+            {
+              "name": "feeTypeId",
+              "description": "The unique identifier for the fee type."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/students/{studentId}/enrollment_fees/{enrollmentFeeId}",
+        "definition": {
+          "entityName": "StudentEnrollmentFee",
+          "schema": {
+            "$ref": "#/backend/entities/StudentEnrollmentFee"
+          },
+          "description": "Stores specific fee instances assigned to a student for a particular billing period. This subcollection structure provides clear ownership to the parent Student. It includes `studentId` explicitly for 'Authorization Independence', allowing rules to verify the parentage without a 'get()' call. Access is restricted to authorized staff members who can manage student finances.",
+          "params": [
+            {
+              "name": "studentId",
+              "description": "The unique identifier of the parent student."
+            },
+            {
+              "name": "enrollmentFeeId",
+              "description": "The unique identifier for this specific student enrollment fee."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/students/{studentId}/payments/{paymentId}",
+        "definition": {
+          "entityName": "Payment",
+          "schema": {
+            "$ref": "#/backend/entities/Payment"
+          },
+          "description": "Records individual payment transactions made by or on behalf of a student. This subcollection structure provides clear ownership to the parent Student. It includes `studentId` explicitly for 'Authorization Independence', allowing rules to verify the parentage without a 'get()' call. Access is restricted to authorized staff members who can process and view payments.",
+          "params": [
+            {
+              "name": "studentId",
+              "description": "The unique identifier of the parent student."
+            },
+            {
+              "name": "paymentId",
+              "description": "The unique identifier for this specific payment transaction."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure for 'Escuela Digital MX' is designed following the core principles of Authorization Independence, Structural Segregation, and DBAC (Database-Backed Access Control) to ensure a secure, scalable, and easily debuggable system. The primary goal is to facilitate simple and robust security rules by minimizing hierarchical dependencies and denormalizing authorization context where critical.\n\n**Justification of Design Principles & Mandates:**\n\n1.  **Authorization Independence via Denormalization:**\n    *   **Staff Roles (`/staff_roles/{staffId}`):** A dedicated top-level collection, `staff_roles`, is created to store the role of each staff member. The document ID (`{staffId}`) directly corresponds to the Firebase Authentication UID (`request.auth.uid`). This critical denormalization strategy eliminates the need for `get()` calls in security rules to retrieve a user's role from their full profile (`/staff_users/{staffId}`). Rules can atomically check `request.auth.uid` against `{staffId}` and read the `role` field from this document. This enables robust, transaction-safe role-based access control and is a cornerstone of Authorization Independence.\n    *   **Student-Owned Subcollections (`/students/{studentId}/enrollment_fees`, `/students/{studentId}/payments`):** For subcollections, the `studentId` is inherently part of the document path. While not a direct denormalization of *authorization* context in the strictest sense for a staff-managed system, the `StudentEnrollmentFee` and `Payment` documents also explicitly include the `studentId` field within their schemas. This allows security rules to verify the parent student context (`request.path[1]`) against the document's internal `studentId` field without performing an additional `get()` call to the parent `Student` document. This design ensures that rules evaluating access to these subcollections are self-contained and efficient, supporting atomic operations.\n\n2.  **Structural Segregation (Homogeneous Security Posture):**\n    *   Each top-level collection (`/staff_users`, `/students`, `/guardians`, `/fee_types`, `/staff_roles`) holds documents that share the same security requirements. For example, all documents in `/students` are subject to the same staff-level access rules. This significantly simplifies security rules, as there's no need for complex conditional logic within a single collection to differentiate between various access levels (e.g., no mixing public student profiles with private financial data in the same collection). All data within this structure is considered private to the school and accessible only by authorized staff based on their roles defined in `/staff_roles`.\n    *   Subcollections like `enrollment_fees` and `payments` further segregate student-specific financial data, maintaining homogeneous security within their scope (i.e., all fees for a student are managed under the same rules).\n\n3.  **QAPs (Queries as Permissions) & Debuggability:**\n    *   The structural segregation enables Query-as-Permissions. Staff members with appropriate roles (e.g., 'Administrador', 'Contador') can perform `list` operations (queries) directly on top-level collections like `/students` or `/fee_types`. The security rules, leveraging the `staff_roles` collection, will grant or deny these list operations based on the requesting `staffId` and their associated role. This means clients are only able to query data for which they already have explicit read permissions at the collection level, preventing security rules from acting as filters.\n    *   For student-specific data, authorized staff can query `/students/{studentId}/enrollment_fees` or `/students/{studentId}/payments`, with the rules verifying the staff's role and the `studentId` from the path. This predictable hierarchy supports efficient and secure queries.\n\n4.  **DBAC (Database-Backed Access Control):**\n    *   All roles (`Administrador`, `Contador`, `Secretario`) are stored as data within the `staff_roles` collection, directly linked to the `staffId` (Firebase Auth UID). This eliminates the reliance on custom claims, making the system more flexible and easier to manage roles dynamically without requiring token refreshes or external identity provider configurations.\n\n**Additional Notes:**\n\nThe user's request for building a 'firebase folder to handle all the error and add a config.ts file' refers to application code structure and Firebase SDK initialization, which falls outside the scope of designing the Firestore data structure. This recommendation focuses solely on the database schema and its security implications."
+  }
+}
