@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -12,7 +13,8 @@ import {
   ShieldCheck, 
   LayoutDashboard,
   GraduationCap,
-  CalendarDays
+  CalendarDays,
+  Zap
 } from "lucide-react"
 
 import {
@@ -38,6 +40,7 @@ const navItems = [
   { name: "Reportes", icon: BarChart3, href: "/reportes" },
   { name: "Comunicaciones", icon: MessageSquare, href: "/comunicaciones" },
   { name: "Roles de Personal", icon: ShieldCheck, href: "/staff" },
+  { name: "Probar Conexión", icon: Zap, href: "/test-connection" },
 ]
 
 export function DashboardNav() {
