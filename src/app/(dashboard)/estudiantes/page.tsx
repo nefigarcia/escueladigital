@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -57,7 +58,6 @@ export default function EstudiantesPage() {
     setMounted(true)
   }, [])
   
-  // Guard against null firestore during initial load
   const studentsRef = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, "students");
@@ -74,6 +74,7 @@ export default function EstudiantesPage() {
     studentIdNumber: "",
     gradeLevel: "1ro Primaria",
     address: "",
+    guardianName: "",
   })
 
   const filteredStudents = (students || []).filter(s => 
@@ -108,6 +109,7 @@ export default function EstudiantesPage() {
         studentIdNumber: "",
         gradeLevel: "1ro Primaria",
         address: "",
+        guardianName: "",
       })
       
       toast({
@@ -193,6 +195,15 @@ export default function EstudiantesPage() {
                 </div>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="guardianName">Tutor</Label>
+                <Input 
+                  id="guardianName" 
+                  placeholder="Nombre del padre o tutor"
+                  value={newStudent.guardianName}
+                  onChange={(e) => setNewStudent({...newStudent, guardianName: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="address">Dirección</Label>
                 <Input 
                   id="address" 
@@ -235,6 +246,7 @@ export default function EstudiantesPage() {
                 <TableRow>
                   <TableHead className="font-bold text-foreground">ID</TableHead>
                   <TableHead className="font-bold text-foreground">Estudiante</TableHead>
+                  <TableHead className="font-bold text-foreground">Tutor</TableHead>
                   <TableHead className="font-bold text-foreground">Grado</TableHead>
                   <TableHead className="font-bold text-foreground">Inscripción</TableHead>
                   <TableHead className="w-[100px]"></TableHead>
@@ -243,7 +255,7 @@ export default function EstudiantesPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">Cargando...</TableCell>
+                    <TableCell colSpan={6} className="h-24 text-center">Cargando...</TableCell>
                   </TableRow>
                 ) : filteredStudents.length > 0 ? (
                   filteredStudents.map((student) => (
@@ -254,6 +266,9 @@ export default function EstudiantesPage() {
                           <span className="font-semibold text-foreground">{student.firstName} {student.lastName}</span>
                           <span className="text-xs text-muted-foreground uppercase">{student.address}</span>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {student.guardianName || "-"}
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="font-medium">
@@ -292,7 +307,7 @@ export default function EstudiantesPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                       No se encontraron estudiantes con ese criterio.
                     </TableCell>
                   </TableRow>
