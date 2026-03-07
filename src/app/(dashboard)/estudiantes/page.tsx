@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -38,15 +39,80 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { MOCK_STUDENTS } from "@/lib/mock-data"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { MOCK_STUDENTS, Student } from "@/lib/mock-data"
+import { toast } from "@/hooks/use-toast"
 
 export default function EstudiantesPage() {
+  const [students, setStudents] = React.useState<Student[]>(MOCK_STUDENTS)
   const [searchTerm, setSearchTerm] = React.useState("")
+  const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false)
   
-  const filteredStudents = MOCK_STUDENTS.filter(s => 
+  const [newStudent, setNewStudent] = React.useState({
+    name: "",
+    idNumber: "",
+    curp: "",
+    grade: "1º A",
+    guardianName: "",
+    guardianPhone: "",
+    guardianEmail: "",
+  })
+
+  const filteredStudents = students.filter(s => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     s.idNumber.includes(searchTerm)
   )
+
+  const handleAddStudent = () => {
+    if (!newStudent.name || !newStudent.idNumber) {
+      toast({
+        variant: "destructive",
+        title: "Campos incompletos",
+        description: "Por favor llena el nombre y el ID del estudiante.",
+      })
+      return
+    }
+
+    const student: Student = {
+      id: Math.random().toString(36).substr(2, 9),
+      ...newStudent,
+      outstandingBalance: 0,
+    }
+
+    setStudents([student, ...students])
+    setIsAddDialogOpen(false)
+    setNewStudent({
+      name: "",
+      idNumber: "",
+      curp: "",
+      grade: "1º A",
+      guardianName: "",
+      guardianPhone: "",
+      guardianEmail: "",
+    })
+    
+    toast({
+      title: "Estudiante registrado",
+      description: `${student.name} ha sido añadido exitosamente.`,
+    })
+  }
+
+  const handleDeleteStudent = (id: string) => {
+    setStudents(students.filter(s => s.id !== id))
+    toast({
+      title: "Estudiante eliminado",
+      description: "El registro ha sido removido del sistema.",
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -55,9 +121,91 @@ export default function EstudiantesPage() {
           <h2 className="text-3xl font-headline font-bold text-primary">Gestión de Estudiantes</h2>
           <p className="text-muted-foreground">Registro y control de la comunidad estudiantil.</p>
         </div>
-        <Button className="w-full sm:w-auto gap-2">
-          <UserPlus className="h-4 w-4" /> Registrar Estudiante
-        </Button>
+        
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="w-full sm:w-auto gap-2">
+              <UserPlus className="h-4 w-4" /> Registrar Estudiante
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Nuevo Registro Estudiantil</DialogTitle>
+              <DialogDescription>
+                Ingresa los datos básicos del alumno y su tutor.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nombre Completo</Label>
+                  <Input 
+                    id="name" 
+                    value={newStudent.name}
+                    onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="idNumber">Matrícula / ID</Label>
+                  <Input 
+                    id="idNumber" 
+                    value={newStudent.idNumber}
+                    onChange={(e) => setNewStudent({...newStudent, idNumber: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="curp">CURP</Label>
+                  <Input 
+                    id="curp" 
+                    value={newStudent.curp}
+                    onChange={(e) => setNewStudent({...newStudent, curp: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="grade">Grado</Label>
+                  <Input 
+                    id="grade" 
+                    value={newStudent.grade}
+                    onChange={(e) => setNewStudent({...newStudent, grade: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="guardian">Nombre del Tutor</Label>
+                <Input 
+                  id="guardian" 
+                  value={newStudent.guardianName}
+                  onChange={(e) => setNewStudent({...newStudent, guardianName: e.target.value})}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Teléfono</Label>
+                  <Input 
+                    id="phone" 
+                    value={newStudent.guardianPhone}
+                    onChange={(e) => setNewStudent({...newStudent, guardianPhone: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input 
+                    id="email" 
+                    type="email"
+                    value={newStudent.guardianEmail}
+                    onChange={(e) => setNewStudent({...newStudent, guardianEmail: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleAddStudent}>Guardar Registro</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card className="border-none shadow-sm">
@@ -146,7 +294,10 @@ export default function EstudiantesPage() {
                               <Users className="h-4 w-4" /> Historial Académico
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive gap-2">
+                            <DropdownMenuItem 
+                              className="text-destructive gap-2"
+                              onClick={() => handleDeleteStudent(student.id)}
+                            >
                               <Trash2 className="h-4 w-4" /> Dar de Baja
                             </DropdownMenuItem>
                           </DropdownMenuContent>

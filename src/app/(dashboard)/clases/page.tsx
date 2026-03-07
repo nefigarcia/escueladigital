@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -15,16 +16,76 @@ import {
   Search,
   BookOpen
 } from "lucide-react"
-import { MOCK_SCHEDULES } from "@/lib/mock-data"
+import { MOCK_SCHEDULES, ClassSchedule } from "@/lib/mock-data"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { toast } from "@/hooks/use-toast"
 
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
 
 export default function ClasesPage() {
+  const [schedules, setSchedules] = React.useState<ClassSchedule[]>(MOCK_SCHEDULES)
   const [date, setDate] = React.useState<Date | undefined>(new Date())
   const [selectedDay, setSelectedDay] = React.useState("Lunes")
+  const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false)
+
+  const [newClass, setNewClass] = React.useState<Partial<ClassSchedule>>({
+    subject: "",
+    teacher: "",
+    room: "",
+    startTime: "08:00",
+    endTime: "09:30",
+    dayOfWeek: "Lunes",
+  })
+
+  const handleAddClass = () => {
+    if (!newClass.subject || !newClass.teacher) return
+
+    const schedule: ClassSchedule = {
+      id: `s-${Math.random().toString(36).substr(2, 5)}`,
+      subject: newClass.subject,
+      teacher: newClass.teacher,
+      room: newClass.room || "Aula pendiente",
+      startTime: newClass.startTime!,
+      endTime: newClass.endTime!,
+      dayOfWeek: newClass.dayOfWeek!,
+      color: "bg-indigo-100 border-indigo-400 text-indigo-700",
+    }
+
+    setSchedules([...schedules, schedule])
+    setIsAddDialogOpen(false)
+    setNewClass({
+      subject: "",
+      teacher: "",
+      room: "",
+      startTime: "08:00",
+      endTime: "09:30",
+      dayOfWeek: "Lunes",
+    })
+    toast({
+      title: "Clase programada",
+      description: `La sesión de ${schedule.subject} ha sido añadida.`,
+    })
+  }
+
+  const handleDeleteClass = (id: string) => {
+    setSchedules(schedules.filter(s => s.id !== id))
+    toast({
+      title: "Clase removida",
+      description: "El horario ha sido actualizado.",
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -33,13 +94,89 @@ export default function ClasesPage() {
           <h2 className="text-3xl font-headline font-bold text-primary">Horarios y Clases</h2>
           <p className="text-muted-foreground">Gestión de programación académica y reservas de espacios.</p>
         </div>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" /> Nueva Clase
-        </Button>
+        
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" /> Nueva Clase
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Programar Nueva Sesión</DialogTitle>
+              <DialogDescription>Asigna materia, docente y horario para una nueva clase.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Nombre de la Materia</Label>
+                <Input 
+                  placeholder="Ej. Física Moderna" 
+                  value={newClass.subject}
+                  onChange={(e) => setNewClass({...newClass, subject: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Docente</Label>
+                <Input 
+                  placeholder="Ej. Dr. Mario Moreno" 
+                  value={newClass.teacher}
+                  onChange={(e) => setNewClass({...newClass, teacher: e.target.value})}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Salón / Espacio</Label>
+                  <Input 
+                    placeholder="Aula 301" 
+                    value={newClass.room}
+                    onChange={(e) => setNewClass({...newClass, room: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Día de la Semana</Label>
+                  <Select 
+                    value={newClass.dayOfWeek} 
+                    onValueChange={(v) => setNewClass({...newClass, dayOfWeek: v})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DAYS.map(day => (
+                        <SelectItem key={day} value={day}>{day}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Hora Inicio</Label>
+                  <Input 
+                    type="time" 
+                    value={newClass.startTime}
+                    onChange={(e) => setNewClass({...newClass, startTime: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hora Fin</Label>
+                  <Input 
+                    type="time" 
+                    value={newClass.endTime}
+                    onChange={(e) => setNewClass({...newClass, endTime: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleAddClass}>Guardar Horario</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
-        {/* Left Column: Calendar and Filters */}
         <div className="space-y-6 lg:col-span-1">
           <Card className="border-none shadow-sm">
             <CardHeader className="pb-3">
@@ -84,7 +221,6 @@ export default function ClasesPage() {
           </Card>
         </div>
 
-        {/* Right Column: Schedule Grid */}
         <div className="lg:col-span-3 space-y-6">
           <div className="flex items-center justify-between bg-white p-2 rounded-xl shadow-sm border">
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
@@ -120,8 +256,8 @@ export default function ClasesPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y">
-                {MOCK_SCHEDULES.filter(s => s.dayOfWeek === selectedDay).length > 0 ? (
-                  MOCK_SCHEDULES.filter(s => s.dayOfWeek === selectedDay).map((item) => (
+                {schedules.filter(s => s.dayOfWeek === selectedDay).length > 0 ? (
+                  schedules.filter(s => s.dayOfWeek === selectedDay).map((item) => (
                     <div 
                       key={item.id} 
                       className="group p-6 flex flex-col md:flex-row md:items-center gap-6 hover:bg-muted/30 transition-colors"
@@ -155,7 +291,14 @@ export default function ClasesPage() {
 
                       <div className="flex gap-2 shrink-0">
                         <Button size="sm" variant="outline">Ver Alumnos</Button>
-                        <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">Reprogramar</Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteClass(item.id)}
+                        >
+                          Eliminar
+                        </Button>
                       </div>
                     </div>
                   ))

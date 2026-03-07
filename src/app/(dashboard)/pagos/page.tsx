@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -19,11 +20,13 @@ import {
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { MOCK_STUDENTS, MOCK_FEES, MOCK_PAYMENTS, Student } from "@/lib/mock-data"
+import { MOCK_STUDENTS, MOCK_FEES, MOCK_PAYMENTS, Student, PaymentRecord } from "@/lib/mock-data"
 import { toast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 
 export default function PagosPage() {
+  const [students, setStudents] = React.useState<Student[]>(MOCK_STUDENTS)
+  const [payments, setPayments] = React.useState<PaymentRecord[]>(MOCK_PAYMENTS)
   const [selectedStudentId, setSelectedStudentId] = React.useState<string>("")
   const [selectedStudent, setSelectedStudent] = React.useState<Student | null>(null)
   const [selectedFee, setSelectedFee] = React.useState<string>("")
@@ -31,7 +34,7 @@ export default function PagosPage() {
 
   // Pre-fill student when ID is searched or selected
   const handleSearchStudent = () => {
-    const student = MOCK_STUDENTS.find(s => s.idNumber === selectedStudentId)
+    const student = students.find(s => s.idNumber === selectedStudentId)
     if (student) {
       setSelectedStudent(student)
       setPaymentAmount(student.outstandingBalance.toString())
@@ -50,10 +53,41 @@ export default function PagosPage() {
   }
 
   const handleProcessPayment = () => {
+    if (!selectedStudent || !paymentAmount) return
+
+    const amount = parseFloat(paymentAmount)
+    const fee = MOCK_FEES.find(f => f.id === selectedFee)
+    
+    // Create new payment record
+    const newPayment: PaymentRecord = {
+      id: `p-${Math.random().toString(36).substr(2, 5)}`,
+      studentId: selectedStudent.id,
+      studentName: selectedStudent.name,
+      feeName: fee?.name || "Pago General",
+      amount: amount,
+      date: new Date().toISOString().split('T')[0],
+      status: 'completado',
+    }
+
+    // Update students list (subtract balance)
+    const updatedStudents = students.map(s => {
+      if (s.id === selectedStudent.id) {
+        return {
+          ...s,
+          outstandingBalance: Math.max(0, s.outstandingBalance - amount)
+        }
+      }
+      return s
+    })
+
+    setStudents(updatedStudents)
+    setPayments([newPayment, ...payments])
+    
     toast({
       title: "Pago Procesado con Éxito",
-      description: `Se ha registrado el pago por $${paymentAmount} MXN para ${selectedStudent?.name}.`,
+      description: `Se ha registrado el pago por $${paymentAmount} MXN para ${selectedStudent.name}.`,
     })
+
     // Reset form
     setSelectedStudent(null)
     setSelectedStudentId("")
@@ -232,7 +266,7 @@ export default function PagosPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {MOCK_PAYMENTS.map((payment) => (
+                    {payments.map((payment) => (
                       <TableRow key={payment.id}>
                         <TableCell className="font-mono text-xs text-primary">{payment.id.toUpperCase()}</TableCell>
                         <TableCell className="font-medium">{payment.studentName}</TableCell>
