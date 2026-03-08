@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -8,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useUser, useDoc, useFirestore, updateDocumentNonBlocking } from "@/firebase"
 import { doc, serverTimestamp } from "firebase/firestore"
-import { User, School, Save, Shield, BadgeCheck, Camera, Loader2, X } from "lucide-react"
+import { User, School, Save, Shield, BadgeCheck, Camera, Loader2, X, MapPin } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
@@ -45,6 +46,7 @@ export default function ConfiguracionPage() {
   const [schoolForm, setSchoolForm] = React.useState({
     name: "",
     cct: "",
+    address: "",
     logoUrl: "",
   })
 
@@ -63,6 +65,7 @@ export default function ConfiguracionPage() {
       setSchoolForm({
         name: school.name || "",
         cct: school.cct || "",
+        address: school.address || "",
         logoUrl: school.logoUrl || "",
       })
     }
@@ -281,6 +284,19 @@ export default function ConfiguracionPage() {
                     />
                   </div>
                   
+                  <div className="space-y-2">
+                    <Label>Dirección de la Institución</Label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        placeholder="Ej. Av. Insurgentes Sur 1234, CDMX"
+                        className="pl-9"
+                        value={schoolForm.address}
+                        onChange={(e) => setSchoolForm({...schoolForm, address: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>CCT (Clave de Centro de Trabajo)</Label>

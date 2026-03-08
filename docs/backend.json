@@ -9,6 +9,7 @@
         "id": { "type": "string" },
         "name": { "type": "string" },
         "cct": { "type": "string", "description": "Clave de Centro de Trabajo (Official School ID in Mexico)." },
+        "address": { "type": "string", "description": "Physical address of the school." },
         "logoUrl": { "type": "string", "description": "URL for the school logo." },
         "activationCode": { "type": "string", "description": "Unique code used by staff and students to join." },
         "directorId": { "type": "string" },
