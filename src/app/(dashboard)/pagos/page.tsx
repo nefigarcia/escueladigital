@@ -112,12 +112,8 @@ export default function PagosPage() {
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.schoolId) return null;
     if (isStudent && profile?.studentIdNumber) {
-       // Note: This path assumes a specific structure for students, adjust if needed
        return query(collection(firestore, "students", profile.uid, "payments"))
     }
-    // For admin, we show global or student-specific. 
-    // This part of the logic might need global payments if schoolId-based, 
-    // but the current schema uses student subcollections.
     if (selectedStudent) {
       return collection(firestore, "students", selectedStudent.id, "payments");
     }
@@ -379,13 +375,18 @@ export default function PagosPage() {
                   <span className="text-sm font-bold uppercase w-32 shrink-0">Domicilio:</span>
                   <span className="text-sm italic ml-4">{pdfData.student?.address || "N/A"}</span>
                 </div>
-                <div className="border-b border-black/10 py-3 flex items-baseline">
-                  <span className="text-sm font-bold uppercase w-32 shrink-0">Concepto:</span>
-                  <div className="flex flex-col ml-4">
+                
+                {/* Concepts Breakdown Summary */}
+                <div className="border-b border-black/10 py-4 flex flex-col">
+                  <span className="text-sm font-bold uppercase mb-2">Desglose de Conceptos:</span>
+                  <div className="space-y-1 ml-4 pr-4">
                     {(pdfData.payment.items || []).map((item: any, idx: number) => (
-                      <span key={idx} className="text-base italic">
-                        {item.name} {item.month ? `- ${item.month}` : ''}
-                      </span>
+                      <div key={idx} className="flex justify-between items-baseline italic border-b border-dashed border-black/5 pb-1">
+                        <span className="text-base">
+                          {item.name} {item.month ? `(${item.month})` : ''}
+                        </span>
+                        <span className="text-base font-bold">${(item.amount || 0).toLocaleString()}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -394,7 +395,7 @@ export default function PagosPage() {
               {/* Amount Box */}
               <div className="bg-slate-50 p-8 rounded-xl border border-black/5 mb-12">
                 <div className="flex justify-between items-center mb-4">
-                  <span className="text-xl font-bold uppercase">Cantidad:</span>
+                  <span className="text-xl font-bold uppercase">Total Pagado:</span>
                   <span className="text-3xl font-black">${(pdfData.payment.totalAmount || 0).toLocaleString()} MXN</span>
                 </div>
                 <div className="text-center pt-4 border-t border-black/10">
@@ -589,7 +590,7 @@ export default function PagosPage() {
                         <TableCell>
                           <div className="flex flex-col gap-0.5">
                             {(p.items || []).map((it: any, idx: number) => (
-                              <span key={idx} className="text-[10px] text-muted-foreground">• {it.name} {it.month ? `(${it.month})` : ''}</span>
+                              <span key={idx} className="text-[10px] text-muted-foreground">• {it.name} {it.month ? `(${it.month})` : ''} - ${it.amount.toLocaleString()}</span>
                             ))}
                           </div>
                         </TableCell>
