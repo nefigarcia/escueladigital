@@ -51,6 +51,23 @@
       },
       "required": ["id", "schoolId", "firstName", "lastName"]
     },
+    "PsychologyReport": {
+      "title": "PsychologyReport",
+      "type": "object",
+      "description": "Psychological or behavioral observation report for a student.",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "content": { "type": "string" },
+        "status": { "type": "string", "enum": ["Borrador", "Finalizado"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "content", "date"]
+    },
     "Attendance": {
       "title": "Attendance",
       "type": "object",
@@ -96,6 +113,10 @@
     "students": {
       "schema": { "$ref": "#/backend/entities/Student" },
       "description": "Global student list."
+    },
+    "psychology_reports": {
+      "schema": { "$ref": "#/backend/entities/PsychologyReport" },
+      "description": "Behavioral and psychological reports."
     },
     "attendance": {
       "schema": { "$ref": "#/backend/entities/Attendance" },

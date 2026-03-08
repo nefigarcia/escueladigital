@@ -15,7 +15,8 @@ import {
   GraduationCap,
   CalendarDays,
   LogOut,
-  FileText
+  FileText,
+  Brain
 } from "lucide-react"
 
 import {
@@ -50,6 +51,7 @@ export function DashboardNav({ schoolName, logoUrl, role }: DashboardNavProps) {
   const allItems = [
     { name: "Inicio", icon: LayoutDashboard, href: "/dashboard", roles: ["Administrador", "Academico", "Alumno"] },
     { name: "Estudiantes", icon: Users, href: "/estudiantes", roles: ["Administrador", "Academico"] },
+    { name: "Psicología", icon: Brain, href: "/psicologia", roles: ["Administrador", "Academico"] },
     { name: "Horarios", icon: CalendarDays, href: "/clases", roles: ["Administrador", "Academico", "Alumno"] },
     { name: "Calificaciones", icon: FileText, href: "/calificaciones", roles: ["Administrador", "Academico", "Alumno"] },
     { name: "Pagos y Finanzas", icon: CreditCard, href: "/pagos", roles: ["Administrador", "Alumno"] },
