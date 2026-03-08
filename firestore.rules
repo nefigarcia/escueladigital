@@ -1,166 +1,50 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * Escuela Digital MX - Security Rules
-     * 
-     * CORE PHILOSOPHY:
-     * This ruleset implements a Database-Backed Access Control (DBAC) model tailored for a 
-     * school administrative system. Authorization is primarily driven by staff roles 
-     * (Administrador, Contador, Secretario) stored in a dedicated top-level collection.
-     * 
-     * DATA STRUCTURE:
-     * - /staff_roles: High-performance lookup for user permissions.
-     * - /staff_users: Detailed profiles for administrative personnel.
-     * - /students & /guardians: Operational data managed by administrative staff.
-     * - /fee_types, /enrollment_fees, /payments: Financial data managed by accounting staff.
-     * 
-     * KEY SECURITY DECISIONS:
-     * - Authorization Independence: Subcollections (fees, payments) denormalize the parent 
-     *   studentId to allow rules to verify path consistency without extra document lookups.
-     * - Role-Based Access: Permissions are strictly partitioned by administrative function.
-     * - Prototyping Flexibility: Rules enforce WHO can access data and relational integrity 
-     *   (e.g., studentId matching), but allow for flexible data shapes for rapid iteration.
-     */
-
-    // --- Helper Functions ---
-
-    /** @description Checks if the user is authenticated. */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /** @description Retrieves the role of the currently authenticated staff member. */
-    function getStaffRole() {
-      return get(/databases/$(database)/documents/staff_roles/$(request.auth.uid)).data.role;
+    function getUserData() {
+      return get(/databases/$(database)/documents/staff_roles/$(request.auth.uid)).data;
     }
 
-    /** @description Checks if the authenticated user has a specific administrative role. */
     function hasRole(role) {
-      return isSignedIn() && getStaffRole() == role;
+      return isSignedIn() && getUserData().role == role;
     }
 
-    /** @description Checks if the user is a system administrator. */
-    function isAdmin() {
-      return hasRole('Administrador');
+    function sameSchool(docData) {
+      return getUserData().schoolId == docData.schoolId;
     }
 
-    /** @description Checks if the user has financial management permissions. */
-    function isFinanceStaff() {
-      return isAdmin() || hasRole('Contador');
+    // Schools
+    match /schools/{schoolId} {
+      allow get: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && hasRole('Administrador') && sameSchool(resource.data);
     }
 
-    /** @description Checks if the user has general operational permissions. */
-    function isOperationalStaff() {
-      return isAdmin() || hasRole('Secretario') || hasRole('Contador');
+    // Roles (DBAC)
+    match /staff_roles/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || (hasRole('Administrador') && sameSchool(get(/databases/$(database)/documents/staff_roles/$(userId)).data)));
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && hasRole('Administrador') && sameSchool(resource.data);
     }
 
-    /** @description Checks if the user is the owner of the document based on their UID. */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /** @description Ensures a document exists before allowing an update or delete. */
-    function exists(res) {
-      return res != null;
-    }
-
-    // --- Collection Rules ---
-
-    /**
-     * @description Controls access to staff role assignments. Central to the DBAC system.
-     * @path /staff_roles/{staffId}
-     * @allow (get) Any signed-in user checking their own role.
-     * @deny (write) Any non-administrator attempting to modify roles.
-     * @principle DBAC - Restricts role management to top-level administrators.
-     */
-    match /staff_roles/{staffId} {
-      allow get: if isSignedIn() && (isOwner(staffId) || isAdmin());
-      allow list: if isAdmin();
-      allow create, update, delete: if isAdmin();
-    }
-
-    /**
-     * @description Manages profile data for administrative staff.
-     * @path /staff_users/{staffId}
-     * @allow (update) A staff member updating their own profile details.
-     * @deny (create) A user attempting to create a staff profile without being an Admin.
-     * @principle Ownership for self-service updates; Admin control for account creation.
-     */
-    match /staff_users/{staffId} {
-      allow get: if isSignedIn() && (isOwner(staffId) || isOperationalStaff());
-      allow list: if isOperationalStaff();
-      allow create: if isAdmin() && isOwner(staffId);
-      allow update: if exists(resource) && (isOwner(staffId) || isAdmin());
-      allow delete: if exists(resource) && isAdmin();
-    }
-
-    /**
-     * @description Stores student enrollment and personal records.
-     * @path /students/{studentId}
-     * @allow (list) Any staff member viewing the student registry.
-     * @deny (delete) Deletion of student records by non-admin staff.
-     * @principle Role-based access for school operations.
-     */
+    // Students
     match /students/{studentId} {
-      allow get, list: if isOperationalStaff();
-      allow create: if isOperationalStaff();
-      allow update: if exists(resource) && isOperationalStaff();
-      allow delete: if exists(resource) && isAdmin();
+      allow list: if isSignedIn() && sameSchool(resource.data);
+      allow get: if isSignedIn() && sameSchool(resource.data);
+      allow create: if isSignedIn() && (hasRole('Administrador') || hasRole('Academico'));
+      allow update, delete: if isSignedIn() && hasRole('Administrador') && sameSchool(resource.data);
     }
 
-    /**
-     * @description Stores guardian contact information.
-     * @path /guardians/{guardianId}
-     * @allow (create) Secretary adding a new guardian record.
-     * @deny (read) Anonymous users attempting to access contact info.
-     * @principle Restricts PII access to authorized operational staff.
-     */
-    match /guardians/{guardianId} {
-      allow get, list: if isOperationalStaff();
-      allow create, update: if isOperationalStaff();
-      allow delete: if exists(resource) && isAdmin();
-    }
-
-    /**
-     * @description Defines types of fees (Tuition, Materials, etc.).
-     * @path /fee_types/{feeTypeId}
-     * @allow (get) Any staff member checking fee definitions.
-     * @deny (update) Secretaries attempting to change financial fee amounts.
-     * @principle Financial integrity - only Finance or Admin can define fee costs.
-     */
-    match /fee_types/{feeTypeId} {
-      allow get, list: if isOperationalStaff();
-      allow create, update, delete: if exists(resource) && isFinanceStaff();
-    }
-
-    /**
-     * @description Tracks specific fees assigned to individual students.
-     * @path /students/{studentId}/enrollment_fees/{enrollmentFeeId}
-     * @allow (create) Finance staff assigning a fee to a student.
-     * @deny (create) Mismatched studentId between the path and document data.
-     * @principle Relational integrity and role-based financial management.
-     */
-    match /students/{studentId}/enrollment_fees/{enrollmentFeeId} {
-      allow get, list: if isOperationalStaff();
-      allow create: if isFinanceStaff() && request.resource.data.studentId == studentId;
-      allow update: if exists(resource) && isFinanceStaff() && request.resource.data.studentId == resource.data.studentId;
-      allow delete: if exists(resource) && isAdmin();
-    }
-
-    /**
-     * @description Records payment transactions for students.
-     * @path /students/{studentId}/payments/{paymentId}
-     * @allow (create) A staff member recording a payment for a student.
-     * @deny (update) Modifying a payment record after it has been created.
-     * @principle Transactional auditability - payments should be immutable for staff.
-     */
-    match /students/{studentId}/payments/{paymentId} {
-      allow get, list: if isOperationalStaff();
-      allow create: if isFinanceStaff() && request.resource.data.studentId == studentId;
-      allow update: if exists(resource) && isAdmin(); // Only admins can correct payment errors
-      allow delete: if exists(resource) && isAdmin();
+    // Fees & Payments
+    match /fee_types/{id} {
+      allow read: if isSignedIn();
+      allow write: if hasRole('Administrador');
     }
   }
 }

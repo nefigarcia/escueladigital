@@ -14,7 +14,8 @@ import {
   LayoutDashboard,
   GraduationCap,
   CalendarDays,
-  Zap
+  Zap,
+  LogOut
 } from "lucide-react"
 
 import {
@@ -30,21 +31,34 @@ import {
   SidebarGroupContent,
 } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuth } from "@/firebase"
+import { signOut } from "firebase/auth"
 
-const navItems = [
-  { name: "Inicio", icon: LayoutDashboard, href: "/" },
-  { name: "Estudiantes", icon: Users, href: "/estudiantes" },
-  { name: "Horarios y Clases", icon: CalendarDays, href: "/clases" },
-  { name: "Config. Tarifas", icon: Settings, href: "/tarifas" },
-  { name: "Pagos y Finanzas", icon: CreditCard, href: "/pagos" },
-  { name: "Reportes", icon: BarChart3, href: "/reportes" },
-  { name: "Comunicaciones", icon: MessageSquare, href: "/comunicaciones" },
-  { name: "Roles de Personal", icon: ShieldCheck, href: "/staff" },
-  { name: "Probar Conexión", icon: Zap, href: "/test-connection" },
-]
+interface DashboardNavProps {
+  schoolName: string
+  role?: string
+}
 
-export function DashboardNav() {
+export function DashboardNav({ schoolName, role }: DashboardNavProps) {
   const pathname = usePathname()
+  const { auth } = useAuth()
+
+  const handleSignOut = () => {
+    if (auth) signOut(auth)
+  }
+
+  const allItems = [
+    { name: "Inicio", icon: LayoutDashboard, href: "/dashboard", roles: ["Administrador", "Academico", "Alumno"] },
+    { name: "Estudiantes", icon: Users, href: "/estudiantes", roles: ["Administrador", "Academico"] },
+    { name: "Horarios", icon: CalendarDays, href: "/clases", roles: ["Administrador", "Academico", "Alumno"] },
+    { name: "Config. Tarifas", icon: Settings, href: "/tarifas", roles: ["Administrador"] },
+    { name: "Pagos y Finanzas", icon: CreditCard, href: "/pagos", roles: ["Administrador", "Alumno"] },
+    { name: "Reportes", icon: BarChart3, href: "/reportes", roles: ["Administrador"] },
+    { name: "Comunicaciones", icon: MessageSquare, href: "/comunicaciones", roles: ["Administrador", "Academico"] },
+    { name: "Personal", icon: ShieldCheck, href: "/staff", roles: ["Administrador"] },
+  ]
+
+  const filteredItems = allItems.filter(item => !role || item.roles.includes(role))
 
   return (
     <Sidebar collapsible="icon">
@@ -53,8 +67,8 @@ export function DashboardNav() {
           <GraduationCap className="h-5 w-5" />
         </div>
         <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
-          <span className="font-headline font-bold text-lg leading-tight">Escuela Digital</span>
-          <span className="text-xs text-sidebar-foreground/60">Admin v1.0</span>
+          <span className="font-headline font-bold text-lg leading-tight truncate">{schoolName}</span>
+          <span className="text-xs text-sidebar-foreground/60">SaaS v2.0</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -62,7 +76,7 @@ export function DashboardNav() {
           <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">Menú Principal</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {filteredItems.map((item) => (
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton
                     asChild
@@ -81,16 +95,14 @@ export function DashboardNav() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-4 bg-sidebar/50">
-        <div className="flex items-center gap-3 overflow-hidden group-data-[collapsible=icon]:justify-center">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src="https://picsum.photos/seed/admin/40/40" />
-            <AvatarFallback>AD</AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-medium">Admin User</span>
-            <span className="text-xs text-sidebar-foreground/60">Director Administrativo</span>
-          </div>
-        </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={handleSignOut} className="text-destructive hover:text-destructive hover:bg-destructive/10">
+              <LogOut className="h-4 w-4" />
+              <span>Cerrar Sesión</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   )
