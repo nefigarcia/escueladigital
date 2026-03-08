@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { GraduationCap, ShieldCheck, Users, UserCircle, ArrowLeft, Loader2, AlertCircle } from "lucide-react"
-import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useAuth, useFirestore, setDocumentNonBlocking, initiateAnonymousSignIn, useUser } from "@/firebase"
+import { doc, collection, query, where, getDocs, limit } from "firebase/firestore"
 import { toast } from "@/hooks/use-toast"
 import { createUserWithEmailAndPassword } from "firebase/auth"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -19,6 +19,7 @@ type Role = "Administrador" | "Academico" | "Alumno"
 export default function RegisterPage() {
   const { auth } = useAuth()
   const { firestore } = useFirestore()
+  const { user: currentUser } = useUser()
   const router = useRouter()
 
   const [mounted, setMounted] = React.useState(false)
@@ -36,14 +37,13 @@ export default function RegisterPage() {
     activationCode: ""
   })
 
-  // Set mounted state to avoid hydration mismatch
   React.useEffect(() => {
     setMounted(true)
-    console.log("RegisterPage: Services Check on Mount", { 
-      authAvailable: !!auth, 
-      firestoreAvailable: !!firestore 
-    });
-  }, [auth, firestore]);
+    // We need an anonymous session to query the schools collection for the activation code
+    if (auth && !currentUser) {
+      initiateAnonymousSignIn(auth)
+    }
+  }, [auth, currentUser])
 
   if (!mounted) {
     return (
@@ -54,7 +54,6 @@ export default function RegisterPage() {
   }
 
   const handleSelectRole = (role: Role) => {
-    console.log("RegisterPage: Role selected", role);
     setSelectedRole(role)
     if (role === "Administrador") {
       setStep("form")
@@ -66,47 +65,50 @@ export default function RegisterPage() {
   const handleCheckCode = async () => {
     if (!firestore || !formData.activationCode) return
     setLoading(true)
-    console.log("RegisterPage: Checking activation code", formData.activationCode);
     
-    // Simulate finding a school for the prototype
-    setTimeout(() => {
-      setSchoolInfo({ id: "demo-school-id", name: "Escuela Demo" })
-      setStep("form")
+    try {
+      const schoolsRef = collection(firestore, "schools")
+      const q = query(schoolsRef, where("activationCode", "==", formData.activationCode.trim()), limit(1))
+      const querySnapshot = await getDocs(q)
+      
+      if (!querySnapshot.empty) {
+        const schoolDoc = querySnapshot.docs[0]
+        const data = schoolDoc.data()
+        setSchoolInfo({ id: schoolDoc.id, name: data.name })
+        setStep("form")
+        toast({
+          title: "Código válido",
+          description: `Te unirás a: ${data.name}`,
+        })
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Código inválido",
+          description: "No se encontró ninguna escuela con ese código. Por favor verifica con tu administración.",
+        })
+      }
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error de verificación",
+        description: "Hubo un problema al validar el código. Reintenta.",
+      })
+    } finally {
       setLoading(false)
-    }, 800)
+    }
   }
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("RegisterPage: handleRegister triggered");
 
-    if (!auth) {
-      console.error("RegisterPage: Auth service is missing");
-      toast({ variant: "destructive", title: "Error", description: "El servicio de autenticación no está listo." });
-      return;
-    }
-    if (!firestore) {
-      console.error("RegisterPage: Firestore service is missing");
-      toast({ variant: "destructive", title: "Error", description: "El servicio de base de datos no está listo." });
-      return;
-    }
-    if (!selectedRole) {
-      console.error("RegisterPage: No role selected");
-      return;
-    }
+    if (!auth || !firestore || !selectedRole) return
 
     setLoading(true)
-    console.log("RegisterPage: Starting registration process...", { 
-      email: formData.email, 
-      role: selectedRole 
-    });
     
     try {
       // 1. Create the Auth account
-      console.log("RegisterPage: Creating Auth account...");
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
       const user = userCredential.user
-      console.log("RegisterPage: Auth account created successfully", user.uid);
 
       // 2. Prepare IDs
       const finalSchoolId = schoolInfo?.id || "school-" + Math.random().toString(36).substring(7)
@@ -114,7 +116,6 @@ export default function RegisterPage() {
 
       // 3. If Director, create the school record
       if (selectedRole === "Administrador") {
-        console.log("RegisterPage: Creating school document...");
         const schoolRef = doc(firestore, "schools", finalSchoolId)
         setDocumentNonBlocking(schoolRef, {
           id: finalSchoolId,
@@ -126,7 +127,6 @@ export default function RegisterPage() {
       }
 
       // 4. Create the user's role profile
-      console.log("RegisterPage: Creating user profile document...");
       const profileRef = doc(firestore, "staff_roles", user.uid)
       setDocumentNonBlocking(profileRef, {
         role: selectedRole,
@@ -138,7 +138,6 @@ export default function RegisterPage() {
         createdAt: new Date().toISOString()
       }, { merge: true })
 
-      console.log("RegisterPage: Registration complete. Redirecting...");
       toast({
         title: "¡Configuración completada!",
         description: selectedRole === "Administrador" 
@@ -146,13 +145,9 @@ export default function RegisterPage() {
           : "Te has unido exitosamente a la escuela.",
       })
       
-      // 5. Redirect to dashboard
-      setTimeout(() => {
-        router.push("/dashboard")
-      }, 500)
+      router.push("/dashboard")
 
     } catch (err: any) {
-      console.error("RegisterPage: Registration error caught", err);
       setLoading(false)
       toast({
         variant: "destructive",
@@ -173,7 +168,7 @@ export default function RegisterPage() {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Servicios No Disponibles</AlertTitle>
             <AlertDescription>
-              Firebase no se ha inicializado correctamente. Revisa tu consola de desarrollo (F12) y las llaves en el archivo .env. Asegúrate de que las variables empiecen con NEXT_PUBLIC_FIREBASE_.
+              Firebase no se ha inicializado correctamente. Revisa tus variables .env y reinicia el servidor.
             </AlertDescription>
           </Alert>
         )}

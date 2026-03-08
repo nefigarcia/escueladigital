@@ -7,22 +7,11 @@ import {
   TrendingUp, 
   CreditCard, 
   AlertCircle,
-  ArrowUpRight,
-  ArrowDownRight,
   School,
-  Key
+  Key,
+  CalendarDays,
+  Activity
 } from "lucide-react"
-import { 
-  Bar, 
-  BarChart, 
-  ResponsiveContainer, 
-  XAxis, 
-  YAxis, 
-  Tooltip,
-  Cell,
-  PieChart,
-  Pie
-} from "recharts"
 import { useUser, useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
 import React from "react"
@@ -50,8 +39,11 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div>
           <h2 className="text-3xl font-headline font-bold tracking-tight text-primary">Panel de Control</h2>
-          <p className="text-muted-foreground mt-2">Gestionando: <span className="font-bold text-foreground">{school?.name}</span></p>
+          <p className="text-muted-foreground mt-2">
+            Institución: <span className="font-bold text-foreground">{school?.name || "Cargando..."}</span>
+          </p>
         </div>
+        
         {profile?.role === "Administrador" && (
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="p-4 flex items-center gap-4">
@@ -60,31 +52,66 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase font-bold">Código de Activación</p>
-                <p className="text-xl font-mono font-bold text-primary">{school?.activationCode}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xl font-mono font-bold text-primary">{school?.activationCode || "---"}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
         )}
       </div>
 
-      {/* Basic Metrics (Keep simple for MVP) */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <MetricCard title="Estudiantes" value="128" icon={<Users className="h-4 w-4" />} change="+4.5%" trend="up" />
-        <MetricCard title="Ingresos (Mes)" value="$142,450" icon={<TrendingUp className="h-4 w-4" />} change="+12%" trend="up" />
-        <MetricCard title="Pendientes" value="14" icon={<AlertCircle className="h-4 w-4" />} change="-2" trend="down" />
-        <MetricCard title="Tasa Cobranza" value="92%" icon={<CreditCard className="h-4 w-4" />} />
+        <MetricCard title="Estudiantes Activos" value="0" icon={<Users className="h-4 w-4" />} change="0%" trend="neutral" />
+        <MetricCard title="Ingresos del Mes" value="$0.00" icon={<TrendingUp className="h-4 w-4" />} change="0%" trend="neutral" />
+        <MetricCard title="Avisos Pendientes" value="0" icon={<AlertCircle className="h-4 w-4" />} change="-" trend="neutral" />
+        <MetricCard title="Eficiencia de Cobro" value="0%" icon={<CreditCard className="h-4 w-4" />} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-7">
-        <Card className="lg:col-span-7">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="font-headline">Bienvenido al Sistema SaaS</CardTitle>
-            <CardDescription>Esta escuela opera bajo el ID: {profile?.schoolId}</CardDescription>
+            <CardTitle className="font-headline">Bienvenido, {profile?.firstName}</CardTitle>
+            <CardDescription>
+              Resumen operativo para {school?.name}. Estás ingresando como <span className="font-bold">{profile?.role}</span>.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="h-[200px] flex items-center justify-center text-muted-foreground italic">
-            Visualización de métricas específicas de la escuela en desarrollo...
+          <CardContent className="h-[300px] flex flex-col items-center justify-center text-center p-6 bg-muted/20 rounded-xl border border-dashed m-6">
+            <Activity className="h-12 w-12 text-muted-foreground/30 mb-4" />
+            <p className="text-muted-foreground italic max-w-sm">
+              Tu base de datos está lista. Comienza registrando estudiantes o configurando tus planes de pago para ver métricas en tiempo real.
+            </p>
           </CardContent>
         </Card>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-headline">Próximos Eventos</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3 text-sm p-3 rounded-lg bg-accent/10 border border-accent/20">
+                <CalendarDays className="h-4 w-4 text-primary" />
+                <div>
+                  <p className="font-bold">Ciclo Escolar 2024</p>
+                  <p className="text-xs text-muted-foreground">Configuración inicial completada</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground text-center py-4">No hay eventos próximos registrados.</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-accent text-accent-foreground shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-headline">Asistente IA listo</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs opacity-80 leading-relaxed">
+                Usa el Asistente de Comunicación para redactar avisos a padres de familia de manera automática.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
@@ -100,10 +127,10 @@ function MetricCard({ title, value, icon, change, trend }: any) {
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
         {change && (
-          <p className="text-xs text-muted-foreground">
-            <span className={`${trend === 'up' ? 'text-emerald-500' : 'text-rose-500'} font-medium`}>
+          <p className="text-xs text-muted-foreground mt-1">
+            <span className={`${trend === 'up' ? 'text-emerald-500' : trend === 'down' ? 'text-rose-500' : 'text-muted-foreground'} font-medium`}>
               {change}
-            </span> desde el periodo anterior
+            </span> vs periodo anterior
           </p>
         )}
       </CardContent>
