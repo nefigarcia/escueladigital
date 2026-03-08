@@ -162,9 +162,11 @@ export default function EstudiantesPage() {
     setIsImporting(true)
     setImportProgress(0)
 
+    // Using ISO-8859-1 encoding to fix accent issues from Excel-generated CSVs
     Papa.parse(file, {
       header: true,
       skipEmptyLines: 'greedy',
+      encoding: "ISO-8859-1",
       complete: async (results) => {
         const rows = results.data as any[]
         if (rows.length === 0) {
@@ -201,18 +203,16 @@ export default function EstudiantesPage() {
             const cleanLName = lName ? String(lName).trim() : "Importado"
             const cleanCantidad = parseFloat(String(cantidadRaw || "0").replace(/[$,]/g, ""));
             
-            // Format date 3/5/2026 to YYYY-MM-DD
+            // Format date D/M/YYYY to YYYY-MM-DD
             let cleanFecha = new Date().toISOString().split('T')[0]
             if (fechaRaw) {
               const dateStr = String(fechaRaw).trim()
               if (dateStr.includes('/')) {
                 const parts = dateStr.split('/')
                 if (parts.length === 3) {
-                  // Assuming D/M/YYYY or M/D/YYYY. For safety, let's try to build it
-                  // If parts[2] is 4 digits, it's year
-                  const y = parts[2].length === 4 ? parts[2] : parts[0]
-                  const d = parts[2].length === 4 ? parts[0] : parts[2]
+                  const d = parts[0]
                   const m = parts[1]
+                  const y = parts[2]
                   cleanFecha = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
                 }
               }
@@ -242,14 +242,15 @@ export default function EstudiantesPage() {
                 createdAt: serverTimestamp(),
               }, { merge: true })
             } else {
-              const sData = sSnap.docs[0].data()
-              studentId = sSnap.docs[0].id
+              const sDoc = sSnap.docs[0]
+              studentId = sDoc.id
+              const sData = sDoc.data()
               studentName = `${sData.firstName} ${sData.lastName}`
             }
 
             // 3. Register Payment
             const paymentsColRef = collection(firestore, "students", studentId, "payments")
-            await addDocumentNonBlocking(paymentsColRef, {
+            addDocumentNonBlocking(paymentsColRef, {
               studentId,
               studentName,
               totalAmount: cleanCantidad,
@@ -259,7 +260,7 @@ export default function EstudiantesPage() {
               status: "completado",
               items: [{
                 id: Math.random().toString(36).substr(2, 9),
-                name: "Colegiatura / Inscripción",
+                name: "Concepto Importado",
                 amount: cleanCantidad,
                 month: month || "",
                 type: 'fee'
@@ -279,10 +280,9 @@ export default function EstudiantesPage() {
         setIsImporting(false)
         toast({
           title: "Importación Finalizada",
-          description: `Se han procesado ${successCount} registros de ${rows.length} correctamente.`,
+          description: `Se han procesado ${successCount} registros exitosamente.`,
         })
         
-        // Clear input
         e.target.value = ""
       }
     })
