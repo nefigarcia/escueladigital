@@ -20,7 +20,7 @@ import {
   Calendar as CalendarIcon,
   Plus,
   Trash2,
-  MoreVertical
+  Edit2
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -30,6 +30,15 @@ import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, u
 import { collection, doc, serverTimestamp, getDoc, query, where } from "firebase/firestore"
 import { numberToWords } from "@/lib/number-to-words"
 import { smartParentCommunicationsDrafting } from "@/ai/flows/smart-parent-communications-drafting"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
+} from "@/components/ui/dialog"
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
 
@@ -56,6 +65,11 @@ export default function PagosPage() {
   
   const pdfTemplateRef = React.useRef<HTMLDivElement>(null)
   const [pdfData, setPdfData] = React.useState<any>(null)
+
+  // Edit State
+  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false)
+  const [editingPayment, setEditingPayment] = React.useState<any | null>(null)
+  const [editItems, setEditItems] = React.useState<PaymentItem[]>([])
 
   React.useEffect(() => {
     setMounted(true)
@@ -93,12 +107,17 @@ export default function PagosPage() {
   ])
 
   const totalAmount = items.reduce((sum, item) => sum + item.amount, 0)
+  const editTotalAmount = editItems.reduce((sum, item) => sum + item.amount, 0)
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.schoolId) return null;
     if (isStudent && profile?.studentIdNumber) {
+       // Note: This path assumes a specific structure for students, adjust if needed
        return query(collection(firestore, "students", profile.uid, "payments"))
     }
+    // For admin, we show global or student-specific. 
+    // This part of the logic might need global payments if schoolId-based, 
+    // but the current schema uses student subcollections.
     if (selectedStudent) {
       return collection(firestore, "students", selectedStudent.id, "payments");
     }
@@ -117,22 +136,33 @@ export default function PagosPage() {
     }
   }
 
-  const addItem = (type: 'fee' | 'custom') => {
-    setItems([...items, { 
+  const addItem = (type: 'fee' | 'custom', isEdit: boolean = false) => {
+    const newItem: PaymentItem = { 
       id: Math.random().toString(36).substr(2, 9), 
       type, 
       name: '', 
       amount: 0 
-    }])
+    };
+    if (isEdit) {
+      setEditItems([...editItems, newItem])
+    } else {
+      setItems([...items, newItem])
+    }
   }
 
-  const removeItem = (id: string) => {
-    if (items.length === 1) return
-    setItems(items.filter(i => i.id !== id))
+  const removeItem = (id: string, isEdit: boolean = false) => {
+    if (isEdit) {
+      if (editItems.length === 1) return
+      setEditItems(editItems.filter(i => i.id !== id))
+    } else {
+      if (items.length === 1) return
+      setItems(items.filter(i => i.id !== id))
+    }
   }
 
-  const updateItem = (id: string, updates: Partial<PaymentItem>) => {
-    setItems(items.map(item => {
+  const updateItem = (id: string, updates: Partial<PaymentItem>, isEdit: boolean = false) => {
+    const list = isEdit ? editItems : items;
+    const newList = list.map(item => {
       if (item.id === id) {
         const updated = { ...item, ...updates }
         if (updates.feeId && item.type === 'fee') {
@@ -148,7 +178,10 @@ export default function PagosPage() {
         return updated
       }
       return item
-    }))
+    });
+    
+    if (isEdit) setEditItems(newList);
+    else setItems(newList);
   }
 
   const handleProcessPayment = async () => {
@@ -185,6 +218,29 @@ export default function PagosPage() {
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  const handleOpenEdit = (payment: any) => {
+    setEditingPayment(payment)
+    setEditItems(payment.items || [])
+    setIsEditDialogOpen(true)
+  }
+
+  const handleUpdatePayment = () => {
+    if (!firestore || !editingPayment) return
+
+    const paymentDocRef = doc(firestore, "students", editingPayment.studentId, "payments", editingPayment.id)
+    
+    updateDocumentNonBlocking(paymentDocRef, {
+      ...editingPayment,
+      items: editItems,
+      totalAmount: editTotalAmount,
+      updatedAt: serverTimestamp(),
+    })
+
+    setIsEditDialogOpen(false)
+    setEditingPayment(null)
+    toast({ title: "Pago Actualizado", description: "Los cambios han sido guardados." })
   }
 
   const handleWhatsAppNotify = async (payment: any) => {
@@ -539,7 +595,10 @@ export default function PagosPage() {
                         </TableCell>
                         <TableCell><Badge variant="outline" className="text-[10px]">{p.paymentMethod}</Badge></TableCell>
                         <TableCell className="font-black text-primary">${(p.totalAmount || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-right flex justify-end gap-2">
+                        <TableCell className="text-right flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(p)} title="Editar Pago">
+                            <Edit2 className="h-4 w-4 text-muted-foreground" />
+                          </Button>
                           <Button variant="ghost" size="icon" disabled={isGeneratingPDF === p.id} onClick={() => handleDownloadPDF(p)} title="Descargar Recibo">
                             {isGeneratingPDF === p.id ? <Loader2 className="h-4 w-4 animate-spin text-destructive" /> : <FileText className="h-4 w-4 text-destructive" />}
                           </Button>
@@ -564,6 +623,125 @@ export default function PagosPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Payment Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Transacción</DialogTitle>
+            <DialogDescription>Modifica los detalles del pago registrado.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Alumno</Label>
+                <Input value={editingPayment?.studentName || ""} disabled className="bg-muted/50" />
+              </div>
+              <div className="space-y-2">
+                <Label>Recibí de</Label>
+                <Input value={editingPayment?.receivedFrom || ""} onChange={(e) => setEditingPayment({...editingPayment, receivedFrom: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b pb-2">
+                <Label className="text-lg font-bold">Desglose de Conceptos</Label>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => addItem('fee', true)} className="gap-1">
+                    <Plus className="h-4 w-4" /> Concepto
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => addItem('custom', true)} className="gap-1">
+                    <Plus className="h-4 w-4" /> Otro
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {editItems.map((item, index) => (
+                  <div key={item.id} className="grid grid-cols-12 gap-3 items-start bg-muted/20 p-3 rounded-lg border">
+                    <div className="col-span-7 space-y-2">
+                      <Label className="text-xs uppercase opacity-50">Concepto {index + 1}</Label>
+                      {item.type === 'fee' ? (
+                        <>
+                          <Select value={item.feeId} onValueChange={(v) => updateItem(item.id, { feeId: v }, true)}>
+                            <SelectTrigger><SelectValue placeholder="Seleccionar tarifa..." /></SelectTrigger>
+                            <SelectContent>{fees?.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                          {item.name.toLowerCase().includes('colegiatura') && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <Label className="text-[10px] uppercase font-bold shrink-0">Mes:</Label>
+                              <Select value={item.month} onValueChange={(v) => updateItem(item.id, { month: v }, true)}>
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Seleccionar mes..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <Input placeholder="Nombre del concepto..." value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value }, true)} />
+                      )}
+                    </div>
+                    <div className="col-span-4 space-y-2">
+                      <Label className="text-xs uppercase opacity-50">Monto</Label>
+                      <Input 
+                        type="number" 
+                        value={item.amount || ""} 
+                        placeholder="0.00"
+                        onChange={(e) => updateItem(item.id, { amount: parseFloat(e.target.value) || 0 }, true)} 
+                      />
+                    </div>
+                    <div className="col-span-1 pt-6">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-destructive hover:bg-destructive/10" 
+                        onClick={() => removeItem(item.id, true)}
+                        disabled={editItems.length === 1}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end p-4 bg-primary/5 rounded-lg border border-primary/10">
+                <div className="text-right">
+                  <p className="text-xs uppercase opacity-50 font-bold">Nuevo Total</p>
+                  <p className="text-2xl font-black text-primary">${editTotalAmount.toLocaleString()} MXN</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 pt-4 border-t">
+              <div className="space-y-2">
+                <Label>Método de Pago</Label>
+                <Select value={editingPayment?.paymentMethod} onValueChange={(v) => setEditingPayment({...editingPayment, paymentMethod: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Efectivo">Efectivo</SelectItem>
+                    <SelectItem value="Transferencia">Transferencia</SelectItem>
+                    <SelectItem value="Tarjeta de Crédito/Débito">Tarjeta</SelectItem>
+                    <SelectItem value="Depósito Bancario">Depósito</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Fecha del Pago</Label>
+                <Input type="date" value={editingPayment?.paymentDate || ""} onChange={(e) => setEditingPayment({...editingPayment, paymentDate: e.target.value})} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleUpdatePayment}>Guardar Cambios</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
