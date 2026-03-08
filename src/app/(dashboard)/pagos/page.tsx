@@ -72,8 +72,12 @@ export default function PagosPage() {
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.schoolId) return null;
+    // For students, we show their own payments
     if (isStudent && profile?.studentIdNumber) {
-       return query(collection(firestore, "students"), where("studentIdNumber", "==", profile.studentIdNumber))
+       // First find student internal ID to query subcollection
+       // For this prototype MVP, we'll look it up in handleDownloadPDF/WA logic
+       // and use a simpler query for history if needed.
+       return collection(firestore, "students", profile.uid, "payments");
     }
     if (selectedStudent) {
       return collection(firestore, "students", selectedStudent.id, "payments");
@@ -81,7 +85,6 @@ export default function PagosPage() {
     return null;
   }, [firestore, selectedStudent, isStudent, profile])
   
-  // Refined hook for history
   const { data: payments } = useCollection(paymentsQuery)
 
   const handleSearchStudent = () => {
@@ -192,32 +195,55 @@ export default function PagosPage() {
         <div ref={pdfTemplateRef} className="w-[210mm] p-10 bg-white">
           {pdfData && (
             <div className="border-4 border-double p-8 relative">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-30deg] text-rose-500/20 text-9xl font-black border-8 border-rose-500/20 p-10 rounded-full">PAGADO</div>
-              <div className="flex justify-between mb-10">
-                <img src={pdfData.school.logoUrl} className="h-32 object-contain" />
-                <div className="text-right">
-                  <h1 className="text-4xl font-serif font-bold">{pdfData.school.name}</h1>
-                  <p className="font-bold">CCT: {pdfData.school.cct}</p>
-                  <p className="text-sm italic">{pdfData.school.address}</p>
+              {/* Pagado Legend */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-30deg] text-rose-500/10 text-9xl font-black border-8 border-rose-500/10 p-10 rounded-full select-none pointer-events-none">PAGADO</div>
+              
+              {/* Header */}
+              <div className="flex items-start gap-4 mb-4">
+                <img src={pdfData.school.logoUrl} className="h-24 w-24 object-contain" />
+                <div className="flex-1">
+                  <h1 className="text-4xl font-serif font-bold text-black" style={{ fontFamily: 'Playfair Display, serif' }}>
+                    {pdfData.school.name}
+                  </h1>
                 </div>
               </div>
-              <div className="space-y-4 border-y py-6 mb-10">
-                <p><strong>RECIBÍ DE:</strong> {pdfData.student?.guardianName || "N/A"}</p>
-                <p><strong>ALUMNO:</strong> {pdfData.payment.studentName}</p>
-                <div className="grid grid-cols-2">
-                  <p><strong>MATRÍCULA:</strong> {pdfData.student?.studentIdNumber}</p>
-                  <p><strong>FECHA:</strong> {pdfData.dateFormatted}</p>
-                </div>
-                <p><strong>CONCEPTO:</strong> {pdfData.payment.feeName}</p>
+              
+              {/* Centered CCT and Address */}
+              <div className="text-center mb-8">
+                <p className="font-bold text-lg">CCT: {pdfData.school.cct}</p>
+                <p className="text-sm italic">{pdfData.school.address}</p>
               </div>
-              <div className="bg-muted p-6 rounded-lg text-center mb-10">
-                <p className="text-4xl font-black">${pdfData.payment.amount} MXN</p>
-                <p className="text-xs font-bold mt-2 uppercase">{pdfData.montoEnLetra}</p>
+
+              {/* Red PAGADO text */}
+              <div className="text-center mb-6">
+                <span className="text-rose-600 font-black text-2xl border-4 border-rose-600 px-6 py-2 rounded-lg">PAGADO</span>
               </div>
-              <div className="mt-20 text-center flex flex-col items-center">
-                <div className="w-64 border-t-2 border-black pt-2 relative">
-                  {pdfData.school.adminSignatureUrl && <img src={pdfData.school.adminSignatureUrl} className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 h-16" />}
-                  <p className="font-bold uppercase">Firma Administrativa</p>
+
+              {/* Content Grid */}
+              <div className="grid grid-cols-2 gap-y-4 gap-x-10 border-t border-b py-8 mb-8 text-sm">
+                <p><strong>FECHA DEL PAGO:</strong> {pdfData.dateFormatted}</p>
+                <p><strong>ID DE PAGO:</strong> {pdfData.payment.id}</p>
+                <p className="col-span-2"><strong>RECIBÍ DE:</strong> {pdfData.student?.guardianName || "N/A"}</p>
+                <p className="col-span-2"><strong>ALUMNO:</strong> {pdfData.payment.studentName}</p>
+                <p><strong>MATRÍCULA:</strong> {pdfData.student?.studentIdNumber}</p>
+                <p><strong>TELÉFONO:</strong> {pdfData.student?.phone || "N/A"}</p>
+                <p className="col-span-2"><strong>DOMICILIO:</strong> {pdfData.student?.address || "N/A"}</p>
+                <p className="col-span-2"><strong>CONCEPTO DE PAGO:</strong> {pdfData.payment.feeName}</p>
+              </div>
+
+              {/* Amount Box */}
+              <div className="bg-slate-100 p-8 rounded-xl text-center mb-12">
+                <p className="text-5xl font-black text-primary">${pdfData.payment.amount.toLocaleString()} MXN</p>
+                <p className="text-xs font-bold mt-4 uppercase tracking-widest">{pdfData.montoEnLetra}</p>
+              </div>
+
+              {/* Signature Footer */}
+              <div className="mt-24 text-center flex flex-col items-center">
+                <div className="w-80 border-t-2 border-black pt-2 relative">
+                  {pdfData.school.adminSignatureUrl && (
+                    <img src={pdfData.school.adminSignatureUrl} className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 h-20" />
+                  )}
+                  <p className="font-bold uppercase tracking-tighter">Firma de área administrativa</p>
                 </div>
               </div>
             </div>
@@ -291,7 +317,7 @@ export default function PagosPage() {
                         <TableCell className="font-black text-primary">${p.amount}</TableCell>
                         <TableCell className="text-right flex justify-end gap-2">
                           <Button variant="ghost" size="icon" disabled={isGeneratingPDF === p.id} onClick={() => handleDownloadPDF(p)}>
-                            {isGeneratingPDF === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                            {isGeneratingPDF === p.id ? <Loader2 className="h-4 w-4 animate-spin text-destructive" /> : <FileText className="h-4 w-4 text-destructive" />}
                           </Button>
                           {!isStudent && (
                             <Button variant="ghost" size="icon" disabled={isSendingWA === p.id} className="text-emerald-600" onClick={() => handleWhatsAppNotify(p)}>
