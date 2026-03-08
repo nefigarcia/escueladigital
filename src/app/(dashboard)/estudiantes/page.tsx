@@ -139,6 +139,21 @@ export default function EstudiantesPage() {
     }
   }
 
+  // Helper to find column values case-insensitively and without accents
+  const getNormalizedValue = (row: any, keys: string[]) => {
+    const normalizedRow = Object.keys(row).reduce((acc: any, key) => {
+      const normKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      acc[normKey] = row[key];
+      return acc;
+    }, {});
+
+    for (const key of keys) {
+      const normTargetKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      if (normalizedRow[normTargetKey] !== undefined) return normalizedRow[normTargetKey];
+    }
+    return undefined;
+  };
+
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !firestore) return
@@ -148,46 +163,57 @@ export default function EstudiantesPage() {
 
     Papa.parse(file, {
       header: true,
-      skipEmptyLines: true,
+      skipEmptyLines: 'greedy',
       complete: async (results) => {
         const rows = results.data as any[]
+        if (rows.length === 0) {
+          setIsImporting(false)
+          toast({ variant: "destructive", title: "Archivo vacío", description: "No se encontraron datos." })
+          return
+        }
+
         let processed = 0
+        let successCount = 0
 
         for (const row of rows) {
           try {
-            // Mapping logic based on expected CSV headers:
-            // Fecha, Matricula, Nombre, Domicilio, RecibiDe, Cantidad, Concepto, Mes
-            const matricula = row.Matricula || row.MATRICULA || row.id
-            const nombreCompleto = row.Nombre || row.NOMBRE || row["NOMBRE DE ALUMNO"]
-            const fecha = row.Fecha || row.FECHA || new Date().toISOString().split('T')[0]
-            const cantidad = parseFloat(row.Cantidad || row.CANTIDAD || "0")
-            const concepto = row.Concepto || row.CONCEPTO || "Pago Importado"
-            const mes = row.Mes || row.MES
-            const recibiDe = row.RecibiDe || row.RECIBIDE || row["RECIBI DE"] || ""
-            const domicilio = row.Domicilio || row.DOMICILIO || ""
+            // Mapping logic using normalization
+            const matricula = getNormalizedValue(row, ["Matricula", "ID", "Matrícula"]);
+            const nombreCompleto = getNormalizedValue(row, ["Nombre", "Nombre de Alumno", "Estudiante"]);
+            const fecha = getNormalizedValue(row, ["Fecha", "Date"]) || new Date().toISOString().split('T')[0];
+            const cantidad = parseFloat(getNormalizedValue(row, ["Cantidad", "Monto", "Total"]) || "0");
+            const concepto = getNormalizedValue(row, ["Concepto", "Descripcion", "Concept"]) || "Pago Importado";
+            const mes = getNormalizedValue(row, ["Mes", "Month"]);
+            const recibiDe = getNormalizedValue(row, ["Recibi de", "Tutor", "Guardian"]) || "";
+            const domicilio = getNormalizedValue(row, ["Domicilio", "Address", "Dirección"]) || "";
 
-            if (!matricula || !nombreCompleto) continue
+            if (!matricula || !nombreCompleto) {
+              processed++
+              continue
+            }
+
+            const cleanMatricula = String(matricula).trim()
+            const cleanNombre = String(nombreCompleto).trim()
 
             // 1. Check if student exists
-            const sQuery = query(collection(firestore, "students"), where("studentIdNumber", "==", matricula), limit(1))
+            const sQuery = query(collection(firestore, "students"), where("studentIdNumber", "==", cleanMatricula), limit(1))
             const sSnap = await getDocs(sQuery)
             
             let studentId = ""
-            let studentName = nombreCompleto
+            let studentName = cleanNombre
 
             if (sSnap.empty) {
-              // Create new student
-              const nameParts = nombreCompleto.split(" ")
+              const nameParts = cleanNombre.split(" ")
               const firstName = nameParts[0] || "Importado"
               const lastName = nameParts.slice(1).join(" ") || "Importado"
               
               const newDocRef = doc(collection(firestore, "students"))
               studentId = newDocRef.id
               
-              setDocumentNonBlocking(newDocRef, {
+              await setDocumentNonBlocking(newDocRef, {
                 firstName,
                 lastName,
-                studentIdNumber: matricula,
+                studentIdNumber: cleanMatricula,
                 address: domicilio,
                 guardianName: recibiDe,
                 gradeLevel: "Importado",
@@ -200,9 +226,9 @@ export default function EstudiantesPage() {
               studentName = `${sSnap.docs[0].data().firstName} ${sSnap.docs[0].data().lastName}`
             }
 
-            // 2. Register Payment
+            // 2. Register Payment in subcollection
             const paymentsColRef = collection(firestore, "students", studentId, "payments")
-            addDocumentNonBlocking(paymentsColRef, {
+            await addDocumentNonBlocking(paymentsColRef, {
               studentId,
               studentName,
               totalAmount: cantidad,
@@ -220,9 +246,7 @@ export default function EstudiantesPage() {
               createdAt: serverTimestamp(),
             })
 
-            // 3. Update Balance (Optional: subtract if debt exists)
-            // For now, we assume imported payments are successful additions to history
-            
+            successCount++
           } catch (err) {
             console.error("Error importing row:", err)
           }
@@ -234,8 +258,11 @@ export default function EstudiantesPage() {
         setIsImporting(false)
         toast({
           title: "Importación Finalizada",
-          description: `Se han procesado ${processed} registros correctamente.`,
+          description: `Se han procesado ${successCount} registros exitosamente.`,
         })
+        
+        // Clear input
+        e.target.value = ""
       }
     })
   }
