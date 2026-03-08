@@ -75,6 +75,7 @@ export default function EstudiantesPage() {
     gradeLevel: "1ro Primaria",
     address: "",
     guardianName: "",
+    phone: "",
   })
 
   const filteredStudents = (students || []).filter(s => 
@@ -111,6 +112,7 @@ export default function EstudiantesPage() {
         gradeLevel: newStudent.gradeLevel.trim(),
         address: newStudent.address.trim(),
         guardianName: newStudent.guardianName.trim(),
+        phone: newStudent.phone.trim(),
         guardianIds: [],
         enrollmentDate: new Date().toISOString().split('T')[0],
         createdAt: serverTimestamp(),
@@ -126,6 +128,7 @@ export default function EstudiantesPage() {
         gradeLevel: "1ro Primaria",
         address: "",
         guardianName: "",
+        phone: "",
       })
       
       toast({
@@ -210,14 +213,25 @@ export default function EstudiantesPage() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="guardianName">Tutor</Label>
-                <Input 
-                  id="guardianName" 
-                  placeholder="Nombre del padre o tutor"
-                  value={newStudent.guardianName}
-                  onChange={(e) => setNewStudent({...newStudent, guardianName: e.target.value})}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="guardianName">Tutor</Label>
+                  <Input 
+                    id="guardianName" 
+                    placeholder="Nombre del padre o tutor"
+                    value={newStudent.guardianName}
+                    onChange={(e) => setNewStudent({...newStudent, guardianName: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Teléfono</Label>
+                  <Input 
+                    id="phone" 
+                    placeholder="Ej. 5512345678"
+                    value={newStudent.phone}
+                    onChange={(e) => setNewStudent({...newStudent, phone: e.target.value})}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="address">Dirección</Label>
@@ -284,7 +298,10 @@ export default function EstudiantesPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {student.guardianName || "-"}
+                        <div className="flex flex-col">
+                          <span>{student.guardianName || "-"}</span>
+                          {student.phone && <span className="text-xs text-muted-foreground">{student.phone}</span>}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="font-medium">
