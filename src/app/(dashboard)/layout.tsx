@@ -60,7 +60,11 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
-        <DashboardNav schoolName={school?.name || "Cargando..."} role={profile?.role} />
+        <DashboardNav 
+          schoolName={school?.name || "Cargando..."} 
+          logoUrl={school?.logoUrl}
+          role={profile?.role} 
+        />
         <SidebarInset className="flex-1 flex flex-col">
           <header className="flex h-16 items-center border-b px-6 gap-4 bg-white/50 backdrop-blur-sm sticky top-0 z-10">
             <SidebarTrigger />

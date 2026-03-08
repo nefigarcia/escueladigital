@@ -34,10 +34,11 @@ import { signOut } from "firebase/auth"
 
 interface DashboardNavProps {
   schoolName: string
+  logoUrl?: string
   role?: string
 }
 
-export function DashboardNav({ schoolName, role }: DashboardNavProps) {
+export function DashboardNav({ schoolName, logoUrl, role }: DashboardNavProps) {
   const pathname = usePathname()
   const { auth } = useAuth()
 
@@ -62,8 +63,12 @@ export function DashboardNav({ schoolName, role }: DashboardNavProps) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border bg-sidebar p-4 flex items-center gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-          <GraduationCap className="h-5 w-5" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground overflow-hidden">
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo" className="h-full w-full object-contain p-1 bg-white" />
+          ) : (
+            <GraduationCap className="h-6 w-6" />
+          )}
         </div>
         <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
           <span className="font-headline font-bold text-lg leading-tight truncate">{schoolName}</span>
