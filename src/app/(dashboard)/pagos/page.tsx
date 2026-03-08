@@ -107,14 +107,8 @@ export default function PagosPage() {
     { id: Math.random().toString(36).substr(2, 9), type: 'fee', name: '', amount: 0 }
   ])
 
-  // Sync total amount from items whenever they change, but Cantidad input is independently editable
-  const sumOfItems = items.reduce((sum, item) => sum + item.amount, 0)
+  // Logic for Edit total
   const editTotalAmount = editItems.reduce((sum, item) => sum + item.amount, 0)
-
-  // We update formTotal when sumOfItems changes to help the user, but formTotal can be manual
-  React.useEffect(() => {
-    setFormTotal(sumOfItems)
-  }, [sumOfItems])
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
