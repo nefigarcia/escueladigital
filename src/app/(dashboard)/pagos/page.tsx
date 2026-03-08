@@ -456,9 +456,25 @@ export default function PagosPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Recibí de (Nombre del Tutor/Padre)</Label>
-                  <Input value={receivedFrom} onChange={(e) => setReceivedFrom(e.target.value)} placeholder="Nombre de quien entrega el pago..." />
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="sm:col-span-2 space-y-2">
+                    <Label>Recibí de (Nombre del Tutor/Padre)</Label>
+                    <Input value={receivedFrom} onChange={(e) => setReceivedFrom(e.target.value)} placeholder="Nombre de quien entrega el pago..." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Cantidad ($)</Label>
+                    <Input 
+                      type="number" 
+                      value={totalAmount || ""} 
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        if (items.length === 1) {
+                          updateItem(items[0].id, { amount: val });
+                        }
+                      }} 
+                      placeholder="0.00" 
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-4">
