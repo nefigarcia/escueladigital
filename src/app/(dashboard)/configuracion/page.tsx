@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -9,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useUser, useDoc, useFirestore, updateDocumentNonBlocking } from "@/firebase"
 import { doc, serverTimestamp } from "firebase/firestore"
-import { User, School, Save, Shield, BadgeCheck, Camera } from "lucide-react"
+import { User, School, Save, Shield, BadgeCheck, Camera, Loader2, X } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
@@ -17,6 +16,8 @@ export default function ConfiguracionPage() {
   const { user } = useUser()
   const { firestore } = useFirestore()
   const [mounted, setMounted] = React.useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const [isUploading, setIsUploading] = React.useState(false)
 
   React.useEffect(() => {
     setMounted(true)
@@ -89,6 +90,55 @@ export default function ConfiguracionPage() {
       title: "Escuela actualizada",
       description: "La información de la institución ha sido guardada.",
     })
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Basic validation
+    if (!file.type.startsWith('image/')) {
+      toast({
+        variant: "destructive",
+        title: "Error de archivo",
+        description: "Por favor selecciona una imagen válida (PNG, JPG).",
+      })
+      return
+    }
+
+    if (file.size > 1024 * 1024) { // 1MB limit for Firestore base64 strings
+      toast({
+        variant: "destructive",
+        title: "Archivo demasiado grande",
+        description: "El logo debe ser menor a 1MB para un rendimiento óptimo.",
+      })
+      return
+    }
+
+    setIsUploading(true)
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const base64String = event.target?.result as string
+      setSchoolForm(prev => ({ ...prev, logoUrl: base64String }))
+      setIsUploading(false)
+      toast({
+        title: "Logo cargado",
+        description: "Presiona 'Guardar Cambios' para aplicar permanentemente.",
+      })
+    }
+    reader.onerror = () => {
+      setIsUploading(false)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo leer el archivo.",
+      })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const removeLogo = () => {
+    setSchoolForm(prev => ({ ...prev, logoUrl: "" }))
   }
 
   if (!mounted) return null
@@ -179,16 +229,45 @@ export default function ConfiguracionPage() {
                 <CardDescription>Configura los datos oficiales y el logotipo de tu plantel.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl bg-muted/5 group relative overflow-hidden">
+                <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl bg-muted/5 group relative overflow-hidden min-h-[200px]">
                   {schoolForm.logoUrl ? (
-                    <img src={schoolForm.logoUrl} alt="Logo" className="h-32 w-auto object-contain mb-4" />
+                    <div className="relative">
+                      <img src={schoolForm.logoUrl} alt="Logo de la escuela" className="h-32 w-auto object-contain mb-4 rounded-md shadow-sm" />
+                      <button 
+                        onClick={removeLogo}
+                        className="absolute -top-2 -right-2 p-1 bg-destructive text-white rounded-full shadow-md hover:scale-110 transition-transform"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
                   ) : (
-                    <School className="h-16 w-16 text-muted-foreground/30 mb-4" />
+                    <div className="flex flex-col items-center">
+                      <School className="h-16 w-16 text-muted-foreground/30 mb-4" />
+                      <p className="text-sm font-medium">Sin Logotipo</p>
+                    </div>
                   )}
-                  <p className="text-sm font-medium">Logotipo de la Escuela</p>
-                  <p className="text-xs text-muted-foreground mt-1">Sube una imagen o ingresa una URL abajo.</p>
-                  <Button variant="outline" size="sm" className="mt-4 gap-2">
-                    <Camera className="h-4 w-4" /> Cambiar Logo
+                  
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-4 gap-2"
+                    disabled={isUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {isUploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
+                    {schoolForm.logoUrl ? "Cambiar Logo" : "Subir Logo"}
                   </Button>
                 </div>
 
@@ -216,19 +295,10 @@ export default function ConfiguracionPage() {
                       <Input value={school?.activationCode || ""} disabled className="font-mono" />
                     </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label>URL del Logotipo</Label>
-                    <Input 
-                      placeholder="https://..."
-                      value={schoolForm.logoUrl}
-                      onChange={(e) => setSchoolForm({...schoolForm, logoUrl: e.target.value})}
-                    />
-                  </div>
                 </div>
               </CardContent>
               <CardFooter className="bg-muted/10 border-t pt-6">
-                <Button onClick={handleUpdateSchool} className="gap-2">
+                <Button onClick={handleUpdateSchool} className="gap-2" disabled={isUploading}>
                   <Save className="h-4 w-4" /> Guardar Cambios Institucionales
                 </Button>
               </CardFooter>
