@@ -89,5 +89,27 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin() || isOperationalStaff();
     }
+
+    // Psychology Reports
+    match /psychology_reports/{reportId} {
+      allow read: if isSignedIn() && (isAdmin() || hasRole('Academico'));
+      allow create: if isSignedIn() && (isAdmin() || hasRole('Academico'));
+      allow update: if isSignedIn() && (isAdmin() || (hasRole('Academico') && resource.data.authorId == request.auth.uid));
+      allow delete: if isAdmin();
+    }
+
+    // Attendance
+    match /attendance/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin() || isOperationalStaff();
+      allow delete: if isAdmin();
+    }
+
+    // Grades
+    match /grades/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin() || hasRole('Academico');
+      allow delete: if isAdmin();
+    }
   }
 }
