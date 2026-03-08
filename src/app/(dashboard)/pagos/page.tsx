@@ -69,11 +69,9 @@ export default function PagosPage() {
   const [paymentAmount, setPaymentAmount] = React.useState<string>("")
   const [isProcessing, setIsProcessing] = React.useState(false)
 
-  // Subscriptions for payments (per student if selected, otherwise global or empty for now)
+  // Subscriptions for payments
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    // For simplicity, we'll fetch from a global 'payments' collection or subcollections
-    // In this MVP, we use the student's subcollection if searching for history
     if (selectedStudent) {
       return collection(firestore, "students", selectedStudent.id, "payments");
     }
@@ -115,7 +113,7 @@ export default function PagosPage() {
         studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
         feeName: fee?.name || "Pago General",
         amount: amount,
-        paymentDate: new Date().toISOString(), // Use string ISO for easy PDF formatting
+        paymentDate: new Date().toISOString(),
         paymentMethod: "Tarjeta",
         status: 'completado',
         createdAt: serverTimestamp(),
@@ -130,8 +128,8 @@ export default function PagosPage() {
       })
       
       toast({
-        title: "Pago Procesado con Éxito",
-        description: `Se ha registrado el pago por $${paymentAmount} MXN.`,
+        title: "Pago Procesado",
+        description: `Registrado por $${paymentAmount} MXN.`,
       })
 
       setSelectedStudent(null)
@@ -139,11 +137,7 @@ export default function PagosPage() {
       setSelectedFeeId("")
       setPaymentAmount("")
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo procesar el pago.",
-      })
+      toast({ variant: "destructive", title: "Error", description: "No se pudo procesar el pago." })
     } finally {
       setIsProcessing(false)
     }
@@ -151,11 +145,9 @@ export default function PagosPage() {
 
   const handleDownloadPDF = async (payment: any) => {
     if (!school || !firestore) return;
-    
     setIsGeneratingPDF(payment.id);
     
     try {
-      // Get student detailed data if not available
       const studentSnap = await getDoc(doc(firestore, "students", payment.studentId));
       const studentData = studentSnap.exists() ? studentSnap.data() : selectedStudent;
 
@@ -173,7 +165,6 @@ export default function PagosPage() {
 
       setPdfData(fullData);
 
-      // Small delay to ensure the template renders in the hidden div
       setTimeout(async () => {
         if (pdfTemplateRef.current) {
           const canvas = await html2canvas(pdfTemplateRef.current, {
@@ -182,36 +173,21 @@ export default function PagosPage() {
             logging: false,
           });
           const imgData = canvas.toDataURL('image/png');
-          const pdf = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
-          });
-          
+          const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
           const imgProps = pdf.getImageProperties(imgData);
           const pdfWidth = pdf.internal.pageSize.getWidth();
           const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-          
           pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
           pdf.save(`Recibo_Pago_${payment.id.substring(0, 8)}.pdf`);
-          
           setPdfData(null);
           setIsGeneratingPDF(null);
-          toast({
-            title: "PDF Generado",
-            description: "El recibo se ha descargado correctamente.",
-          });
+          toast({ title: "Recibo Descargado", description: "El PDF se generó exitosamente." });
         }
-      }, 500);
-
+      }, 600);
     } catch (error) {
       console.error("PDF Error:", error);
       setIsGeneratingPDF(null);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo generar el PDF del recibo.",
-      });
+      toast({ variant: "destructive", title: "Error", description: "No se pudo generar el PDF." });
     }
   };
 
@@ -221,18 +197,12 @@ export default function PagosPage() {
     <div className="space-y-6">
       {/* PDF TEMPLATE (HIDDEN) */}
       <div className="fixed -left-[2000px] top-0">
-        <div 
-          ref={pdfTemplateRef} 
-          className="w-[210mm] bg-white p-[20mm] text-[#333]"
-          style={{ fontFamily: "'Times New Roman', Times, serif" }}
-        >
+        <div ref={pdfTemplateRef} className="w-[210mm] bg-white p-[20mm] text-[#333]" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
           {pdfData && (
             <div className="border-2 border-gray-200 p-8 relative overflow-hidden">
-              {/* PAGADO STAMP */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-25deg] border-8 border-red-500 text-red-500 text-8xl font-black opacity-20 px-12 py-6 rounded-3xl pointer-events-none">
                 PAGADO
               </div>
-
               <div className="flex justify-between items-start mb-10">
                 <div className="w-32 h-32 flex items-center justify-center">
                   {pdfData.school.logoUrl ? (
@@ -253,7 +223,6 @@ export default function PagosPage() {
                   </div>
                 </div>
               </div>
-
               <div className="border-t-2 border-b-2 border-black py-4 mb-8 flex justify-between">
                 <div>
                   <p className="font-bold">RECIBO DE PAGO</p>
@@ -264,66 +233,41 @@ export default function PagosPage() {
                   <p>{pdfData.dateFormatted}</p>
                 </div>
               </div>
-
               <div className="space-y-6 text-lg mb-12">
-                <div className="flex border-b pb-2">
-                  <span className="w-48 font-bold">RECIBÍ DE:</span>
-                  <span className="flex-1 italic">{pdfData.student.guardianName || "N/A"}</span>
-                </div>
-                <div className="flex border-b pb-2">
-                  <span className="w-48 font-bold">ALUMNO:</span>
-                  <span className="flex-1">{pdfData.student.firstName} {pdfData.student.lastName}</span>
+                <div className="flex border-b pb-2"><span className="w-48 font-bold">RECIBÍ DE:</span><span className="flex-1 italic">{pdfData.student.guardianName || "N/A"}</span></div>
+                <div className="flex border-b pb-2"><span className="w-48 font-bold">ALUMNO:</span><span className="flex-1">{pdfData.student.firstName} {pdfData.student.lastName}</span></div>
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="flex border-b pb-2"><span className="w-40 font-bold">MATRÍCULA:</span><span className="flex-1">{pdfData.student.studentIdNumber}</span></div>
+                  <div className="flex border-b pb-2"><span className="w-40 font-bold">GRADO:</span><span className="flex-1">{pdfData.student.gradeLevel}</span></div>
                 </div>
                 <div className="grid grid-cols-2 gap-8">
-                  <div className="flex border-b pb-2">
-                    <span className="w-40 font-bold">MATRÍCULA:</span>
-                    <span className="flex-1">{pdfData.student.studentIdNumber}</span>
-                  </div>
-                  <div className="flex border-b pb-2">
-                    <span className="w-40 font-bold">GRADO:</span>
-                    <span className="flex-1">{pdfData.student.gradeLevel}</span>
-                  </div>
+                  <div className="flex border-b pb-2"><span className="w-40 font-bold">TELÉFONO:</span><span className="flex-1">{pdfData.student.phone || "N/A"}</span></div>
+                  <div className="flex border-b pb-2"><span className="w-40 font-bold">MÉTODO:</span><span className="flex-1">{pdfData.payment.paymentMethod}</span></div>
                 </div>
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="flex border-b pb-2">
-                    <span className="w-40 font-bold">TELÉFONO:</span>
-                    <span className="flex-1">{pdfData.student.phone || "N/A"}</span>
-                  </div>
-                  <div className="flex border-b pb-2">
-                    <span className="w-40 font-bold">MÉTODO:</span>
-                    <span className="flex-1">{pdfData.payment.paymentMethod}</span>
-                  </div>
-                </div>
-                <div className="flex border-b pb-2">
-                  <span className="w-48 font-bold">DOMICILIO:</span>
-                  <span className="flex-1 text-sm">{pdfData.student.address}</span>
-                </div>
-                <div className="flex border-b pb-2">
-                  <span className="w-48 font-bold">CONCEPTO:</span>
-                  <span className="flex-1 font-bold">{pdfData.payment.feeName}</span>
-                </div>
+                <div className="flex border-b pb-2"><span className="w-48 font-bold">DOMICILIO:</span><span className="flex-1 text-sm">{pdfData.student.address}</span></div>
+                <div className="flex border-b pb-2"><span className="w-48 font-bold">CONCEPTO:</span><span className="flex-1 font-bold">{pdfData.payment.feeName}</span></div>
               </div>
-
               <div className="bg-gray-100 p-8 rounded-lg mb-12">
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-2xl font-bold">CANTIDAD:</span>
                   <span className="text-4xl font-black">${parseFloat(pdfData.payment.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</span>
                 </div>
-                <p className="text-sm font-bold text-center border-t border-gray-400 pt-4 uppercase">
-                  {pdfData.montoEnLetra}
-                </p>
+                <p className="text-sm font-bold text-center border-t border-gray-400 pt-4 uppercase">{pdfData.montoEnLetra}</p>
               </div>
-
-              <div className="mt-24 flex justify-center">
-                <div className="w-80 text-center border-t-2 border-black pt-4">
+              <div className="mt-24 flex flex-col items-center">
+                <div className="w-80 text-center border-t-2 border-black pt-4 relative">
+                  {pdfData.school.adminSignatureUrl && (
+                    <img 
+                      src={pdfData.school.adminSignatureUrl} 
+                      alt="Firma" 
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 h-20 w-auto object-contain"
+                    />
+                  )}
                   <p className="font-bold uppercase">Firma de área administrativa</p>
-                  <p className="text-xs text-gray-500 mt-2">Sello y Firma Digital</p>
+                  <p className="text-xs text-gray-500 mt-1">Sello y Validación Digital</p>
                 </div>
               </div>
-              
-              <div className="text-center mt-12 text-[10px] text-gray-400 uppercase tracking-widest">
-                Documento de validez oficial - Escuela Digital MX
-              </div>
+              <div className="text-center mt-12 text-[10px] text-gray-400 uppercase tracking-widest">Documento de validez oficial - Escuela Digital MX</div>
             </div>
           )}
         </div>
@@ -336,14 +280,9 @@ export default function PagosPage() {
 
       <Tabs defaultValue="nuevo-pago" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
-          <TabsTrigger value="nuevo-pago" className="gap-2">
-            <CreditCard className="h-4 w-4" /> Registrar Pago
-          </TabsTrigger>
-          <TabsTrigger value="historial" className="gap-2">
-            <History className="h-4 w-4" /> Historial de Pagos
-          </TabsTrigger>
+          <TabsTrigger value="nuevo-pago" className="gap-2"><CreditCard className="h-4 w-4" /> Registrar Pago</TabsTrigger>
+          <TabsTrigger value="historial" className="gap-2"><History className="h-4 w-4" /> Historial de Pagos</TabsTrigger>
         </TabsList>
-
         <TabsContent value="nuevo-pago">
           <div className="grid gap-6 md:grid-cols-3">
             <Card className="md:col-span-2 border-none shadow-md overflow-hidden">
@@ -356,16 +295,8 @@ export default function PagosPage() {
                   <div className="space-y-2">
                     <Label htmlFor="studentId">Número de ID Estudiante</Label>
                     <div className="flex gap-2">
-                      <Input 
-                        id="studentId" 
-                        placeholder="Ej. 2024001" 
-                        value={selectedStudentId}
-                        onChange={(e) => setSelectedStudentId(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSearchStudent()}
-                      />
-                      <Button onClick={handleSearchStudent} size="icon" variant="secondary">
-                        <Search className="h-4 w-4" />
-                      </Button>
+                      <Input id="studentId" placeholder="Ej. 2024001" value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearchStudent()} />
+                      <Button onClick={handleSearchStudent} size="icon" variant="secondary"><Search className="h-4 w-4" /></Button>
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -373,44 +304,17 @@ export default function PagosPage() {
                     <Input value={selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : ""} disabled placeholder="Se llenará automáticamente" />
                   </div>
                 </div>
-
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="fee">Concepto de Pago</Label>
                     <Select value={selectedFeeId} onValueChange={setSelectedFeeId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar concepto..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {fees?.map(fee => (
-                          <SelectItem key={fee.id} value={fee.id}>{fee.name} - ${fee.baseAmount}</SelectItem>
-                        ))}
-                      </SelectContent>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar concepto..." /></SelectTrigger>
+                      <SelectContent>{fees?.map(fee => (<SelectItem key={fee.id} value={fee.id}>{fee.name} - ${fee.baseAmount}</SelectItem>))}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="amount">Monto a Pagar (MXN)</Label>
-                    <Input 
-                      id="amount" 
-                      type="number" 
-                      placeholder="0.00" 
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Método de Pago</Label>
-                  <div className="flex gap-4">
-                    <label className="flex-1 flex items-center justify-center gap-2 p-4 border rounded-lg cursor-pointer hover:bg-accent/10 has-[:checked]:border-primary has-[:checked]:bg-primary/5 transition-all">
-                      <input type="radio" name="method" className="sr-only" defaultChecked />
-                      <CreditCard className="h-4 w-4" /> Tarjeta
-                    </label>
-                    <label className="flex-1 flex items-center justify-center gap-2 p-4 border rounded-lg cursor-pointer hover:bg-accent/10 has-[:checked]:border-primary has-[:checked]:bg-primary/5 transition-all">
-                      <input type="radio" name="method" className="sr-only" />
-                      <Wallet className="h-4 w-4" /> Efectivo
-                    </label>
+                    <Input id="amount" type="number" placeholder="0.00" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
                   </div>
                 </div>
               </CardContent>
@@ -421,81 +325,35 @@ export default function PagosPage() {
                 </Button>
               </CardFooter>
             </Card>
-
             <div className="space-y-6">
               <Card className="bg-primary text-primary-foreground shadow-lg">
-                <CardHeader>
-                  <CardTitle className="font-headline">Resumen Estudiantil</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="font-headline">Resumen Estudiantil</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   {selectedStudent ? (
                     <>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                          <User className="h-6 w-6" />
-                        </div>
-                        <div>
-                          <p className="font-bold">{selectedStudent.firstName} {selectedStudent.lastName}</p>
-                          <p className="text-xs opacity-70">Grado: {selectedStudent.gradeLevel}</p>
-                        </div>
+                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"><User className="h-6 w-6" /></div>
+                        <div><p className="font-bold">{selectedStudent.firstName} {selectedStudent.lastName}</p><p className="text-xs opacity-70">Grado: {selectedStudent.gradeLevel}</p></div>
                       </div>
-                      <div className="pt-4 border-t border-white/20">
-                        <p className="text-xs opacity-70 mb-1">SALDO TOTAL PENDIENTE</p>
-                        <p className="text-3xl font-bold">${selectedStudent.outstandingBalance || 0} MXN</p>
-                      </div>
+                      <div className="pt-4 border-t border-white/20"><p className="text-xs opacity-70 mb-1">SALDO TOTAL PENDIENTE</p><p className="text-3xl font-bold">${selectedStudent.outstandingBalance || 0} MXN</p></div>
                     </>
                   ) : (
-                    <div className="text-center py-8 opacity-70">
-                      <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-sm">Busca un estudiante para ver su estado de cuenta rápido.</p>
-                    </div>
+                    <div className="text-center py-8 opacity-70"><Search className="h-12 w-12 mx-auto mb-4 opacity-50" /><p className="text-sm">Busca un estudiante para ver su estado rápido.</p></div>
                   )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="font-headline text-lg">Próximos Vencimientos</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center text-sm border-b pb-2">
-                    <span className="text-muted-foreground">Ene 20 - Mensualidad</span>
-                    <Badge variant="destructive">Hoy</Badge>
-                  </div>
-                  <div className="flex justify-between items-center text-sm border-b pb-2">
-                    <span className="text-muted-foreground">Feb 01 - Materiales</span>
-                    <span className="text-xs">Faltan 11 días</span>
-                  </div>
                 </CardContent>
               </Card>
             </div>
           </div>
         </TabsContent>
-
         <TabsContent value="historial">
           <Card className="border-none shadow-sm overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="font-headline">Historial de Transacciones</CardTitle>
-                <CardDescription>Registro histórico de los pagos recibidos.</CardDescription>
-              </div>
-              <Button variant="outline" className="gap-2">
-                <Download className="h-4 w-4" /> Exportar CSV
-              </Button>
+              <div><CardTitle className="font-headline">Historial de Transacciones</CardTitle><CardDescription>Registro histórico de los pagos recibidos.</CardDescription></div>
             </CardHeader>
             <CardContent>
               <div className="rounded-md border bg-white">
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Folio</TableHead>
-                      <TableHead>Estudiante</TableHead>
-                      <TableHead>Concepto</TableHead>
-                      <TableHead>Monto</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead className="text-right">Recibo</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <TableHeader><TableRow><TableHead>Folio</TableHead><TableHead>Estudiante</TableHead><TableHead>Concepto</TableHead><TableHead>Monto</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Recibo</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {payments?.map((payment) => (
                       <TableRow key={payment.id}>
@@ -503,37 +361,14 @@ export default function PagosPage() {
                         <TableCell className="font-medium">{payment.studentName}</TableCell>
                         <TableCell>{payment.feeName}</TableCell>
                         <TableCell className="font-bold">${parseFloat(payment.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={payment.status === "completado" ? "default" : "secondary"}
-                            className={payment.status === "completado" ? "bg-emerald-500 hover:bg-emerald-600" : ""}
-                          >
-                            {payment.status.toUpperCase()}
-                          </Badge>
-                        </TableCell>
+                        <TableCell><Badge variant={payment.status === "completado" ? "default" : "secondary"} className={payment.status === "completado" ? "bg-emerald-500 hover:bg-emerald-600" : ""}>{payment.status.toUpperCase()}</Badge></TableCell>
                         <TableCell className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            title="Descargar PDF"
-                            disabled={isGeneratingPDF === payment.id}
-                            onClick={() => handleDownloadPDF(payment)}
-                          >
-                            {isGeneratingPDF === payment.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <FileText className="h-4 w-4 text-rose-600" />
-                            )}
+                          <Button variant="ghost" size="icon" disabled={isGeneratingPDF === payment.id} onClick={() => handleDownloadPDF(payment)}>
+                            {isGeneratingPDF === payment.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4 text-rose-600" />}
                           </Button>
                         </TableCell>
                       </TableRow>
-                    )) || (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                          {selectedStudent ? "No se encontraron pagos registrados para este alumno." : "Busca un alumno en la pestaña 'Registrar Pago' para ver su historial aquí."}
-                        </TableCell>
-                      </TableRow>
-                    )}
+                    )) || (<TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Busca un alumno para ver su historial.</TableCell></TableRow>)}
                   </TableBody>
                 </Table>
               </div>
