@@ -97,7 +97,6 @@ export default function PagosPage() {
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.schoolId) return null;
     if (isStudent && profile?.studentIdNumber) {
-       // Note: Corrected subcollection query logic
        return query(collection(firestore, "students", profile.uid, "payments"))
     }
     if (selectedStudent) {
@@ -141,7 +140,6 @@ export default function PagosPage() {
           if (fee) {
             updated.name = fee.name
             updated.amount = fee.baseAmount || 0
-            // Clear month if not Colegiatura
             if (!fee.name.toLowerCase().includes('colegiatura')) {
               updated.month = undefined
             }
@@ -210,7 +208,6 @@ export default function PagosPage() {
 
       const text = encodeURIComponent(draft.draftMessage)
       window.open(`https://wa.me/52${student.phone}?text=${text}`, '_blank')
-      toast({ title: "Asistente IA", description: "Borrador de WhatsApp listo." })
     } catch (e) {
       toast({ variant: "destructive", title: "Error" })
     } finally {
@@ -228,7 +225,7 @@ export default function PagosPage() {
         payment,
         student: studentData,
         school,
-        montoEnLetra: numberToWords(payment.totalAmount || payment.amount),
+        montoEnLetra: numberToWords(payment.totalAmount || 0),
         dateFormatted: new Date(payment.paymentDate + 'T12:00:00').toLocaleDateString()
       };
       setPdfData(fullData);
@@ -249,75 +246,75 @@ export default function PagosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="fixed -left-[3000px]">
-        <div ref={pdfTemplateRef} className="w-[210mm] p-10 bg-white text-black">
+      <div className="fixed -left-[4000px] top-0">
+        <div ref={pdfTemplateRef} className="w-[210mm] p-10 bg-white text-black font-serif">
           {pdfData && (
-            <div className="border-4 border-double p-8 relative">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-30deg] text-rose-500/10 text-9xl font-black border-8 border-rose-500/10 p-10 rounded-full select-none pointer-events-none uppercase">PAGADO</div>
+            <div className="border-[6px] border-double p-10 relative">
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-35deg] text-rose-500/10 text-[180px] font-black border-[12px] border-rose-500/10 p-16 rounded-full select-none pointer-events-none uppercase">PAGADO</div>
               
-              <div className="flex items-start gap-4 mb-4">
+              <div className="flex items-center gap-10 mb-6">
                 {pdfData.school.logoUrl && (
-                  <img src={pdfData.school.logoUrl} className="h-24 w-24 object-contain" />
+                  <img src={pdfData.school.logoUrl} className="h-40 w-40 object-contain" />
                 )}
                 <div className="flex-1">
-                  <h1 className="text-4xl font-serif font-bold text-black" style={{ fontFamily: 'Playfair Display, serif' }}>
+                  <h1 className="text-[48px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
                     {pdfData.school.name}
                   </h1>
                 </div>
               </div>
               
-              <div className="text-center mb-8">
-                <p className="font-bold text-lg uppercase">CCT: {pdfData.school.cct}</p>
-                <p className="text-sm italic">{pdfData.school.address}</p>
+              <div className="text-center mb-10 space-y-1">
+                <p className="font-bold text-2xl uppercase tracking-widest">CCT: {pdfData.school.cct}</p>
+                <p className="text-lg italic">{pdfData.school.address}</p>
               </div>
 
-              <div className="text-center mb-6">
-                <span className="text-rose-600 font-black text-2xl border-4 border-rose-600 px-6 py-2 rounded-lg">PAGADO</span>
+              <div className="text-center mb-10">
+                <span className="text-rose-600 font-black text-4xl border-[5px] border-rose-600 px-12 py-4 rounded-2xl uppercase tracking-tighter">PAGADO</span>
               </div>
 
-              <div className="grid grid-cols-2 gap-y-4 gap-x-10 border-t border-b py-6 mb-4 text-sm">
+              <div className="grid grid-cols-2 gap-y-4 gap-x-16 border-t-2 border-b-2 border-black/10 py-10 mb-8 text-lg">
                 <p><strong>FECHA DEL PAGO:</strong> {pdfData.dateFormatted}</p>
                 <p><strong>FOLIO:</strong> {pdfData.payment.id.substring(0, 8).toUpperCase()}</p>
-                <p className="col-span-2"><strong>RECIBÍ DE:</strong> {pdfData.payment.receivedFrom || pdfData.student?.guardianName || "N/A"}</p>
                 <p className="col-span-2"><strong>ALUMNO:</strong> {pdfData.payment.studentName}</p>
                 <p><strong>MATRÍCULA:</strong> {pdfData.student?.studentIdNumber}</p>
                 <p><strong>TELÉFONO:</strong> {pdfData.student?.phone || "N/A"}</p>
-                <p className="col-span-2"><strong>MÉTODO:</strong> {pdfData.payment.paymentMethod}</p>
+                <p className="col-span-2"><strong>DOMICILIO:</strong> {pdfData.student?.address || "N/A"}</p>
+                <p className="col-span-2"><strong>RECIBÍ DE:</strong> {pdfData.payment.receivedFrom || "N/A"}</p>
               </div>
 
-              <div className="mb-6 border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b">
+              <div className="mb-8 border-2 border-black/5 rounded-2xl overflow-hidden shadow-sm">
+                <table className="w-full text-lg">
+                  <thead className="bg-slate-100 border-b-2">
                     <tr>
-                      <th className="p-3 text-left font-bold">Concepto</th>
-                      <th className="p-3 text-right font-bold w-32">Monto</th>
+                      <th className="p-5 text-left font-bold">Concepto / Descripción</th>
+                      <th className="p-5 text-right font-bold w-48">Monto</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {(pdfData.payment.items || [{ name: pdfData.payment.feeName, amount: pdfData.payment.amount }]).map((item: any, idx: number) => (
+                    {(pdfData.payment.items || []).map((item: any, idx: number) => (
                       <tr key={idx}>
-                        <td className="p-3">
+                        <td className="p-5">
                           {item.name} {item.month ? `- ${item.month}` : ''}
                         </td>
-                        <td className="p-3 text-right font-mono">${(item.amount || 0).toLocaleString()}</td>
+                        <td className="p-5 text-right font-mono font-bold">${(item.amount || 0).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              <div className="bg-slate-100 p-6 rounded-xl text-center mb-8">
-                <p className="text-sm uppercase tracking-widest text-muted-foreground font-bold mb-1">Total Pagado</p>
-                <p className="text-4xl font-black text-primary">${(pdfData.payment.totalAmount || pdfData.payment.amount).toLocaleString()} MXN</p>
-                <p className="text-xs font-bold mt-3 uppercase tracking-widest">{pdfData.montoEnLetra}</p>
+              <div className="bg-slate-50 p-8 rounded-3xl text-center mb-12 border-2 border-black/5">
+                <p className="text-base uppercase tracking-[0.2em] text-muted-foreground font-black mb-2">Total Liquidado</p>
+                <p className="text-5xl font-black text-black">${(pdfData.payment.totalAmount || 0).toLocaleString()} MXN</p>
+                <p className="text-sm font-bold mt-4 uppercase tracking-widest text-slate-600">{pdfData.montoEnLetra}</p>
               </div>
 
-              <div className="mt-16 text-center flex flex-col items-center">
-                <div className="w-80 border-t-2 border-black pt-2 relative">
+              <div className="mt-20 text-center flex flex-col items-center">
+                <div className="w-[300px] border-t-4 border-black pt-4 relative">
                   {pdfData.school.adminSignatureUrl && (
-                    <img src={pdfData.school.adminSignatureUrl} className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 h-20" />
+                    <img src={pdfData.school.adminSignatureUrl} className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 h-24" />
                   )}
-                  <p className="font-bold uppercase tracking-tighter">Firma de área administrativa</p>
+                  <p className="font-black text-lg uppercase tracking-tighter">Firma de área administrativa</p>
                 </div>
               </div>
             </div>
@@ -492,13 +489,13 @@ export default function PagosPage() {
                         <TableCell className="font-bold">{p.studentName}</TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-0.5">
-                            {(p.items || [{ name: p.feeName }]).map((it: any, idx: number) => (
+                            {(p.items || []).map((it: any, idx: number) => (
                               <span key={idx} className="text-[10px] text-muted-foreground">• {it.name} {it.month ? `(${it.month})` : ''}</span>
                             ))}
                           </div>
                         </TableCell>
                         <TableCell><Badge variant="outline" className="text-[10px]">{p.paymentMethod}</Badge></TableCell>
-                        <TableCell className="font-black text-primary">${(p.totalAmount || p.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell className="font-black text-primary">${(p.totalAmount || 0).toLocaleString()}</TableCell>
                         <TableCell className="text-right flex justify-end gap-2">
                           <Button variant="ghost" size="icon" disabled={isGeneratingPDF === p.id} onClick={() => handleDownloadPDF(p)} title="Descargar Recibo">
                             {isGeneratingPDF === p.id ? <Loader2 className="h-4 w-4 animate-spin text-destructive" /> : <FileText className="h-4 w-4 text-destructive" />}
