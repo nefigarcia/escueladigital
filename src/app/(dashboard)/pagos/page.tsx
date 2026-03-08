@@ -17,7 +17,8 @@ import {
   Receipt,
   FileText,
   Loader2,
-  MessageCircle
+  MessageCircle,
+  Calendar as CalendarIcon
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -68,16 +69,18 @@ export default function PagosPage() {
   const [selectedStudent, setSelectedStudent] = React.useState<any | null>(null)
   const [selectedFeeId, setSelectedFeeId] = React.useState<string>("")
   const [paymentAmount, setPaymentAmount] = React.useState<string>("")
+  const [paymentMethod, setPaymentMethod] = React.useState<string>("Efectivo")
+  const [paymentDate, setPaymentDate] = React.useState<string>(new Date().toISOString().split('T')[0])
+  const [receivedFrom, setReceivedFrom] = React.useState<string>("")
   const [isProcessing, setIsProcessing] = React.useState(false)
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.schoolId) return null;
-    // For students, we show their own payments
     if (isStudent && profile?.studentIdNumber) {
-       // First find student internal ID to query subcollection
-       // For this prototype MVP, we'll look it up in handleDownloadPDF/WA logic
-       // and use a simpler query for history if needed.
-       return collection(firestore, "students", profile.uid, "payments");
+       // Search for student record with this ID number
+       // We'll filter payments by studentName/Id in the view or handle it with a more complex query
+       // For this prototype we show payments for the selected student or current user student
+       return query(collection(firestore, "grades"), where("studentIdNumber", "==", profile.studentIdNumber))
     }
     if (selectedStudent) {
       return collection(firestore, "students", selectedStudent.id, "payments");
@@ -92,6 +95,7 @@ export default function PagosPage() {
     if (student) {
       setSelectedStudent(student)
       setPaymentAmount((student.outstandingBalance || 0).toString())
+      setReceivedFrom(student.guardianName || "")
     } else {
       toast({ variant: "destructive", title: "No encontrado" })
     }
@@ -110,8 +114,9 @@ export default function PagosPage() {
         studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
         feeName: fee?.name || "Pago General",
         amount: amount,
-        paymentDate: new Date().toISOString(),
-        paymentMethod: "Efectivo/Transferencia",
+        paymentDate: paymentDate,
+        paymentMethod: paymentMethod,
+        receivedFrom: receivedFrom,
         status: 'completado',
         createdAt: serverTimestamp(),
       })
@@ -125,6 +130,7 @@ export default function PagosPage() {
       toast({ title: "Pago Procesado" })
       setSelectedStudent(null)
       setSelectedStudentId("")
+      setReceivedFrom("")
     } finally {
       setIsProcessing(false)
     }
@@ -170,7 +176,7 @@ export default function PagosPage() {
         student: studentData,
         school,
         montoEnLetra: numberToWords(payment.amount),
-        dateFormatted: new Date(payment.paymentDate).toLocaleDateString()
+        dateFormatted: new Date(payment.paymentDate + 'T12:00:00').toLocaleDateString()
       };
       setPdfData(fullData);
       setTimeout(async () => {
@@ -196,11 +202,13 @@ export default function PagosPage() {
           {pdfData && (
             <div className="border-4 border-double p-8 relative">
               {/* Pagado Legend */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-30deg] text-rose-500/10 text-9xl font-black border-8 border-rose-500/10 p-10 rounded-full select-none pointer-events-none">PAGADO</div>
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-30deg] text-rose-500/10 text-9xl font-black border-8 border-rose-500/10 p-10 rounded-full select-none pointer-events-none uppercase">PAGADO</div>
               
               {/* Header */}
               <div className="flex items-start gap-4 mb-4">
-                <img src={pdfData.school.logoUrl} className="h-24 w-24 object-contain" />
+                {pdfData.school.logoUrl && (
+                  <img src={pdfData.school.logoUrl} className="h-24 w-24 object-contain" />
+                )}
                 <div className="flex-1">
                   <h1 className="text-4xl font-serif font-bold text-black" style={{ fontFamily: 'Playfair Display, serif' }}>
                     {pdfData.school.name}
@@ -210,7 +218,7 @@ export default function PagosPage() {
               
               {/* Centered CCT and Address */}
               <div className="text-center mb-8">
-                <p className="font-bold text-lg">CCT: {pdfData.school.cct}</p>
+                <p className="font-bold text-lg uppercase">CCT: {pdfData.school.cct}</p>
                 <p className="text-sm italic">{pdfData.school.address}</p>
               </div>
 
@@ -222,13 +230,14 @@ export default function PagosPage() {
               {/* Content Grid */}
               <div className="grid grid-cols-2 gap-y-4 gap-x-10 border-t border-b py-8 mb-8 text-sm">
                 <p><strong>FECHA DEL PAGO:</strong> {pdfData.dateFormatted}</p>
-                <p><strong>ID DE PAGO:</strong> {pdfData.payment.id}</p>
-                <p className="col-span-2"><strong>RECIBÍ DE:</strong> {pdfData.student?.guardianName || "N/A"}</p>
+                <p><strong>FOLIO:</strong> {pdfData.payment.id.substring(0, 8).toUpperCase()}</p>
+                <p className="col-span-2"><strong>RECIBÍ DE:</strong> {pdfData.payment.receivedFrom || pdfData.student?.guardianName || "N/A"}</p>
                 <p className="col-span-2"><strong>ALUMNO:</strong> {pdfData.payment.studentName}</p>
                 <p><strong>MATRÍCULA:</strong> {pdfData.student?.studentIdNumber}</p>
                 <p><strong>TELÉFONO:</strong> {pdfData.student?.phone || "N/A"}</p>
                 <p className="col-span-2"><strong>DOMICILIO:</strong> {pdfData.student?.address || "N/A"}</p>
-                <p className="col-span-2"><strong>CONCEPTO DE PAGO:</strong> {pdfData.payment.feeName}</p>
+                <p><strong>CONCEPTO DE PAGO:</strong> {pdfData.payment.feeName}</p>
+                <p><strong>MÉTODO:</strong> {pdfData.payment.paymentMethod}</p>
               </div>
 
               {/* Amount Box */}
@@ -265,21 +274,28 @@ export default function PagosPage() {
            <Card className="border-none shadow-md max-w-2xl">
               <CardHeader className="bg-primary/5 border-b">
                 <CardTitle className="font-headline">Nueva Transacción</CardTitle>
+                <CardDescription>Completa los detalles para generar el recibo oficial.</CardDescription>
               </CardHeader>
               <CardContent className="pt-6 space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>ID Estudiante</Label>
                     <div className="flex gap-2">
-                      <Input value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} />
+                      <Input value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} placeholder="Matrícula..." />
                       <Button onClick={handleSearchStudent} size="icon" variant="secondary"><Search className="h-4 w-4" /></Button>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Alumno</Label>
-                    <Input value={selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : ""} disabled />
+                    <Input value={selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : ""} disabled className="bg-muted/50" />
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Recibí de (Nombre del Tutor/Padre)</Label>
+                  <Input value={receivedFrom} onChange={(e) => setReceivedFrom(e.target.value)} placeholder="Nombre de quien entrega el pago..." />
+                </div>
+
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Concepto</Label>
@@ -293,10 +309,33 @@ export default function PagosPage() {
                     <Input type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
                   </div>
                 </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Método de Pago</Label>
+                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Efectivo">Efectivo</SelectItem>
+                        <SelectItem value="Transferencia">Transferencia</SelectItem>
+                        <SelectItem value="Tarjeta de Crédito/Débito">Tarjeta</SelectItem>
+                        <SelectItem value="Depósito Bancario">Depósito</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fecha del Pago</Label>
+                    <div className="relative">
+                      <CalendarIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="pl-9" />
+                    </div>
+                  </div>
+                </div>
               </CardContent>
               <CardFooter className="bg-muted/10 border-t pt-4">
-                <Button className="w-full gap-2" disabled={isProcessing || !selectedStudent} onClick={handleProcessPayment}>
-                  <CheckCircle2 className="h-4 w-4" /> Confirmar Pago
+                <Button className="w-full gap-2 h-12 text-lg font-bold" disabled={isProcessing || !selectedStudent} onClick={handleProcessPayment}>
+                  {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+                  Confirmar y Registrar Pago
                 </Button>
               </CardFooter>
            </Card>
@@ -305,28 +344,44 @@ export default function PagosPage() {
           <Card className="border-none shadow-md overflow-hidden">
             <CardHeader><CardTitle className="font-headline">Transacciones</CardTitle></CardHeader>
             <CardContent>
-              <div className="rounded-md border">
+              <div className="rounded-md border bg-white">
                 <Table>
-                  <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Alumno</TableHead><TableHead>Concepto</TableHead><TableHead>Monto</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Alumno</TableHead>
+                      <TableHead>Concepto</TableHead>
+                      <TableHead>Método</TableHead>
+                      <TableHead>Monto</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
                     {payments?.length ? payments.map(p => (
                       <TableRow key={p.id}>
-                        <TableCell>{new Date(p.paymentDate).toLocaleDateString()}</TableCell>
+                        <TableCell>{new Date(p.paymentDate + 'T12:00:00').toLocaleDateString()}</TableCell>
                         <TableCell className="font-bold">{p.studentName}</TableCell>
                         <TableCell>{p.feeName}</TableCell>
-                        <TableCell className="font-black text-primary">${p.amount}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-[10px]">{p.paymentMethod}</Badge></TableCell>
+                        <TableCell className="font-black text-primary">${p.amount.toLocaleString()}</TableCell>
                         <TableCell className="text-right flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" disabled={isGeneratingPDF === p.id} onClick={() => handleDownloadPDF(p)}>
+                          <Button variant="ghost" size="icon" disabled={isGeneratingPDF === p.id} onClick={() => handleDownloadPDF(p)} title="Descargar Recibo">
                             {isGeneratingPDF === p.id ? <Loader2 className="h-4 w-4 animate-spin text-destructive" /> : <FileText className="h-4 w-4 text-destructive" />}
                           </Button>
                           {!isStudent && (
-                            <Button variant="ghost" size="icon" disabled={isSendingWA === p.id} className="text-emerald-600" onClick={() => handleWhatsAppNotify(p)}>
+                            <Button variant="ghost" size="icon" disabled={isSendingWA === p.id} className="text-emerald-600" onClick={() => handleWhatsAppNotify(p)} title="Enviar WhatsApp">
                               {isSendingWA === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
                             </Button>
                           )}
                         </TableCell>
                       </TableRow>
-                    )) : <TableRow><TableCell colSpan={5} className="text-center py-10">Sin registros.</TableCell></TableRow>}
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                          {selectedStudent ? "No se encontraron pagos para este alumno." : "Selecciona un alumno o revisa el historial general."}
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
