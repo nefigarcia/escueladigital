@@ -247,74 +247,117 @@ export default function PagosPage() {
   return (
     <div className="space-y-6">
       <div className="fixed -left-[4000px] top-0">
-        <div ref={pdfTemplateRef} className="w-[210mm] p-10 bg-white text-black font-serif">
+        <div ref={pdfTemplateRef} className="w-[210mm] p-[15mm] bg-white text-black font-serif min-h-[297mm]">
           {pdfData && (
-            <div className="border-[6px] border-double p-10 relative">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-35deg] text-rose-500/10 text-[180px] font-black border-[12px] border-rose-500/10 p-16 rounded-full select-none pointer-events-none uppercase">PAGADO</div>
-              
-              <div className="flex items-center gap-10 mb-6">
-                {pdfData.school.logoUrl && (
-                  <img src={pdfData.school.logoUrl} className="h-40 w-40 object-contain" />
-                )}
-                <div className="flex-1">
-                  <h1 className="text-[48px] font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <div className="relative">
+              {/* Watermark */}
+              <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-35deg] text-rose-500/15 text-[150px] font-bold border-[10px] border-rose-500/15 px-12 py-6 rounded-3xl select-none pointer-events-none uppercase z-0">
+                PAGADO
+              </div>
+
+              {/* Header */}
+              <div className="flex justify-between items-start mb-2">
+                <div className="w-1/3">
+                  {pdfData.school.logoUrl && (
+                    <img src={pdfData.school.logoUrl} className="h-24 w-auto object-contain" alt="Logo" />
+                  )}
+                </div>
+                <div className="w-2/3 text-right">
+                  <h1 className="text-[36pt] font-bold leading-none mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>
                     {pdfData.school.name}
                   </h1>
                 </div>
               </div>
               
-              <div className="text-center mb-10 space-y-1">
-                <p className="font-bold text-2xl uppercase tracking-widest">CCT: {pdfData.school.cct}</p>
-                <p className="text-lg italic">{pdfData.school.address}</p>
+              <div className="text-right mb-4">
+                <p className="font-bold text-lg">CCT: {pdfData.school.cct}</p>
+                <p className="text-sm italic">{pdfData.school.address}</p>
               </div>
 
-              <div className="text-center mb-10">
-                <span className="text-rose-600 font-black text-4xl border-[5px] border-rose-600 px-12 py-4 rounded-2xl uppercase tracking-tighter">PAGADO</span>
+              {/* Thick Separator Line */}
+              <div className="h-1 bg-black w-full mb-6" />
+
+              {/* Receipt Subheader */}
+              <div className="flex justify-between items-end mb-6">
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-widest">Recibo de Pago</h2>
+                  <p className="text-xs text-muted-foreground">Folio: {pdfData.payment.id.toUpperCase()}</p>
+                </div>
+                <div className="text-right">
+                  <h2 className="text-sm font-bold uppercase tracking-widest">Fecha</h2>
+                  <p className="text-sm">{pdfData.dateFormatted}</p>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-y-4 gap-x-16 border-t-2 border-b-2 border-black/10 py-10 mb-8 text-lg">
-                <p><strong>FECHA DEL PAGO:</strong> {pdfData.dateFormatted}</p>
-                <p><strong>FOLIO:</strong> {pdfData.payment.id.substring(0, 8).toUpperCase()}</p>
-                <p className="col-span-2"><strong>ALUMNO:</strong> {pdfData.payment.studentName}</p>
-                <p><strong>MATRÍCULA:</strong> {pdfData.student?.studentIdNumber}</p>
-                <p><strong>TELÉFONO:</strong> {pdfData.student?.phone || "N/A"}</p>
-                <p className="col-span-2"><strong>DOMICILIO:</strong> {pdfData.student?.address || "N/A"}</p>
-                <p className="col-span-2"><strong>RECIBÍ DE:</strong> {pdfData.payment.receivedFrom || "N/A"}</p>
-              </div>
-
-              <div className="mb-8 border-2 border-black/5 rounded-2xl overflow-hidden shadow-sm">
-                <table className="w-full text-lg">
-                  <thead className="bg-slate-100 border-b-2">
-                    <tr>
-                      <th className="p-5 text-left font-bold">Concepto / Descripción</th>
-                      <th className="p-5 text-right font-bold w-48">Monto</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
+              {/* Main Fields with Separators */}
+              <div className="space-y-4 mb-8">
+                <div className="border-b border-black/10 py-3 flex items-baseline">
+                  <span className="text-sm font-bold uppercase w-32 shrink-0">Recibí de:</span>
+                  <span className="text-base italic ml-4">{pdfData.payment.receivedFrom}</span>
+                </div>
+                <div className="border-b border-black/10 py-3 flex items-baseline">
+                  <span className="text-sm font-bold uppercase w-32 shrink-0">Alumno:</span>
+                  <span className="text-base italic ml-4">{pdfData.payment.studentName}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-8 border-b border-black/10 py-3">
+                  <div className="flex items-baseline">
+                    <span className="text-sm font-bold uppercase w-32 shrink-0">Matrícula:</span>
+                    <span className="text-base italic ml-4">{pdfData.student?.studentIdNumber}</span>
+                  </div>
+                  <div className="flex items-baseline">
+                    <span className="text-sm font-bold uppercase w-20 shrink-0">Grado:</span>
+                    <span className="text-base italic ml-4">{pdfData.student?.gradeLevel}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-8 border-b border-black/10 py-3">
+                  <div className="flex items-baseline">
+                    <span className="text-sm font-bold uppercase w-32 shrink-0">Teléfono:</span>
+                    <span className="text-base italic ml-4">{pdfData.student?.phone || "N/A"}</span>
+                  </div>
+                  <div className="flex items-baseline">
+                    <span className="text-sm font-bold uppercase w-20 shrink-0">Método:</span>
+                    <span className="text-base italic ml-4">{pdfData.payment.paymentMethod}</span>
+                  </div>
+                </div>
+                <div className="border-b border-black/10 py-3 flex items-baseline">
+                  <span className="text-sm font-bold uppercase w-32 shrink-0">Domicilio:</span>
+                  <span className="text-sm italic ml-4">{pdfData.student?.address || "N/A"}</span>
+                </div>
+                <div className="border-b border-black/10 py-3 flex items-baseline">
+                  <span className="text-sm font-bold uppercase w-32 shrink-0">Concepto:</span>
+                  <div className="flex flex-col ml-4">
                     {(pdfData.payment.items || []).map((item: any, idx: number) => (
-                      <tr key={idx}>
-                        <td className="p-5">
-                          {item.name} {item.month ? `- ${item.month}` : ''}
-                        </td>
-                        <td className="p-5 text-right font-mono font-bold">${(item.amount || 0).toLocaleString()}</td>
-                      </tr>
+                      <span key={idx} className="text-base italic">
+                        {item.name} {item.month ? `- ${item.month}` : ''}
+                      </span>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
               </div>
 
-              <div className="bg-slate-50 p-8 rounded-3xl text-center mb-12 border-2 border-black/5">
-                <p className="text-base uppercase tracking-[0.2em] text-muted-foreground font-black mb-2">Total Liquidado</p>
-                <p className="text-5xl font-black text-black">${(pdfData.payment.totalAmount || 0).toLocaleString()} MXN</p>
-                <p className="text-sm font-bold mt-4 uppercase tracking-widest text-slate-600">{pdfData.montoEnLetra}</p>
+              {/* Amount Box */}
+              <div className="bg-slate-50 p-8 rounded-xl border border-black/5 mb-12">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-xl font-bold uppercase">Cantidad:</span>
+                  <span className="text-3xl font-black">${(pdfData.payment.totalAmount || 0).toLocaleString()} MXN</span>
+                </div>
+                <div className="text-center pt-4 border-t border-black/10">
+                  <p className="text-sm font-bold uppercase tracking-widest text-slate-700">
+                    {pdfData.montoEnLetra}
+                  </p>
+                </div>
               </div>
 
-              <div className="mt-20 text-center flex flex-col items-center">
-                <div className="w-[300px] border-t-4 border-black pt-4 relative">
+              {/* Footer Signature */}
+              <div className="mt-32 flex flex-col items-center">
+                <div className="w-[300px] border-t-2 border-black relative">
                   {pdfData.school.adminSignatureUrl && (
-                    <img src={pdfData.school.adminSignatureUrl} className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 h-24" />
+                    <img src={pdfData.school.adminSignatureUrl} className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 h-16 object-contain" alt="Signature" />
                   )}
-                  <p className="font-black text-lg uppercase tracking-tighter">Firma de área administrativa</p>
+                  <div className="text-center mt-2">
+                    <p className="font-bold text-sm uppercase tracking-tight">Firma de Área Administrativa</p>
+                    <p className="text-[10px] text-muted-foreground uppercase mt-1">Sello y Firma Digital</p>
+                  </div>
                 </div>
               </div>
             </div>
