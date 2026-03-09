@@ -27,7 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, useUser, useDoc } from "@/firebase"
-import { collection, doc, serverTimestamp, getDoc, query, where } from "firebase/firestore"
+import { collection, doc, serverTimestamp, getDoc, query, where, getDocs, limit } from "firebase/firestore"
 import { numberToWords } from "@/lib/number-to-words"
 import { smartParentCommunicationsDrafting } from "@/ai/flows/smart-parent-communications-drafting"
 import { 
@@ -112,24 +112,48 @@ export default function PagosPage() {
     { id: Math.random().toString(36).substr(2, 9), type: 'fee', name: '', amount: 0 }
   ])
 
+  // Logic to find current student document if logged in as Alumno
+  const [currentUserStudentDoc, setCurrentUserStudentDoc] = React.useState<any | null>(null)
+  React.useEffect(() => {
+    async function findStudent() {
+      if (isStudent && profile?.studentIdNumber && firestore && profile?.schoolId) {
+        const q = query(
+          collection(firestore, "students"), 
+          where("schoolId", "==", profile.schoolId),
+          where("studentIdNumber", "==", profile.studentIdNumber),
+          limit(1)
+        )
+        const snap = await getDocs(q)
+        if (!snap.empty) {
+          setCurrentUserStudentDoc({ ...snap.docs[0].data(), id: snap.docs[0].id })
+        }
+      }
+    }
+    findStudent()
+  }, [isStudent, profile, firestore])
+
   const editTotalAmount = editItems.reduce((sum, item) => sum + item.amount, 0)
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.schoolId) return null;
-    if (isStudent && profile?.studentIdNumber) {
+    
+    // Alumno viewing their own history
+    if (isStudent && currentUserStudentDoc) {
        return query(
-         collection(firestore, "students", profile.studentIdNumber, "payments"),
+         collection(firestore, "students", currentUserStudentDoc.id, "payments"),
          where("schoolId", "==", profile.schoolId)
        )
     }
-    if (selectedStudent) {
+    
+    // Staff viewing a searched student's history
+    if (!isStudent && selectedStudent) {
       return query(
         collection(firestore, "students", selectedStudent.id, "payments"),
         where("schoolId", "==", profile.schoolId)
       );
     }
     return null;
-  }, [firestore, selectedStudent, isStudent, profile])
+  }, [firestore, selectedStudent, isStudent, profile, currentUserStudentDoc])
   
   const { data: payments } = useCollection(paymentsQuery)
 
@@ -138,8 +162,9 @@ export default function PagosPage() {
     if (student) {
       setSelectedStudent(student)
       setReceivedFrom(student.guardianName || "")
+      toast({ title: "Alumno encontrado" })
     } else {
-      toast({ variant: "destructive", title: "No encontrado" })
+      toast({ variant: "destructive", title: "No encontrado", description: "Verifica la matrícula." })
     }
   }
 
@@ -504,7 +529,13 @@ export default function PagosPage() {
                             <>
                               <Select value={item.feeId} onValueChange={(v) => updateItem(item.id, { feeId: v })}>
                                 <SelectTrigger><SelectValue placeholder="Seleccionar tarifa..." /></SelectTrigger>
-                                <SelectContent>{fees?.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent>
+                                <SelectContent>
+                                  {fees?.length ? fees.map(f => (
+                                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                                  )) : (
+                                    <SelectItem value="none" disabled>No hay tarifas configuradas</SelectItem>
+                                  )}
+                                </SelectContent>
                               </Select>
                               {item.name.toLowerCase().includes('colegiatura') && (
                                 <div className="mt-2 flex items-center gap-2">
@@ -634,7 +665,7 @@ export default function PagosPage() {
                     )) : (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                          {selectedStudent ? "No se encontraron pagos para este alumno." : "Selecciona un alumno o revisa el historial general."}
+                          {selectedStudent || currentUserStudentDoc ? "No se encontraron pagos registrados." : "Busca un alumno por matrícula para ver su historial."}
                         </TableCell>
                       </TableRow>
                     )}

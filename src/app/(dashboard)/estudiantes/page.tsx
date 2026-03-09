@@ -49,7 +49,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser, setDocumentNonBlocking, updateDocumentNonBlocking, useDoc } from "@/firebase"
-import { collection, doc, serverTimestamp, getDocs, query, where, limit } from "firebase/firestore"
+import { collection, doc, serverTimestamp, getDocs, query, where, limit, addDoc } from "firebase/firestore"
 import Papa from "papaparse"
 
 export default function EstudiantesPage() {
@@ -187,6 +187,19 @@ export default function EstudiantesPage() {
     return undefined;
   };
 
+  const parseDate = (dateStr: string) => {
+    if (!dateStr) return new Date().toISOString().split('T')[0];
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      // D/M/YYYY to YYYY-MM-DD
+      const day = parts[0].padStart(2, '0');
+      const month = parts[1].padStart(2, '0');
+      const year = parts[2];
+      return `${year}-${month}-${day}`;
+    }
+    return dateStr;
+  }
+
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !firestore || !profile?.schoolId) return
@@ -206,7 +219,7 @@ export default function EstudiantesPage() {
           return
         }
 
-        let processed = 0
+        let processedCount = 0
         let successCount = 0
 
         for (const row of rows) {
@@ -215,38 +228,91 @@ export default function EstudiantesPage() {
             const fName = getNormalizedValue(row, ["firstName", "Nombre"]);
             const lName = getNormalizedValue(row, ["lastName", "Apellidos"]);
             const grade = getNormalizedValue(row, ["gradeLevel", "Grado"]);
+            const totalAmtRaw = getNormalizedValue(row, ["totalAmount ", "totalAmount", "Total", "Monto"]);
+            const pDateRaw = getNormalizedValue(row, ["paymentDate", "Fecha"]);
+            const pMethod = getNormalizedValue(row, ["paymentMethod", "Metodo"]) || "Efectivo";
+            const received = getNormalizedValue(row, ["receivedFrom", "Recibido de", "Tutor"]);
+            const monthStr = getNormalizedValue(row, ["month", "Mes"]);
+            
+            // Concepts
+            const inscAmt = getNormalizedValue(row, ["Inscripcion"]);
+            const colAmt = getNormalizedValue(row, ["Colegiatura"]);
 
             if (!matriculaRaw) {
-              processed++
+              processedCount++
               continue
             }
 
             const cleanMatricula = String(matriculaRaw).trim()
+            let studentDocId = ""
+            
+            // 1. Find or create student
             const sQuery = query(collection(firestore, "students"), where("studentIdNumber", "==", cleanMatricula), where("schoolId", "==", profile.schoolId), limit(1))
             const sSnap = await getDocs(sQuery)
             
             if (sSnap.empty) {
               const newDocRef = doc(collection(firestore, "students"))
+              studentDocId = newDocRef.id
               await setDocumentNonBlocking(newDocRef, {
                 schoolId: profile.schoolId,
                 firstName: fName ? String(fName).trim() : "Alumno",
                 lastName: lName ? String(lName).trim() : "Importado",
                 studentIdNumber: cleanMatricula,
                 gradeLevel: grade || "Importado",
+                address: getNormalizedValue(row, ["address", "Direccion"]) || "",
+                phone: getNormalizedValue(row, ["phone", "Telefono"]) || "",
+                guardianName: received || "",
                 outstandingBalance: 0,
                 createdAt: serverTimestamp(),
               }, { merge: true })
-              successCount++
+            } else {
+              studentDocId = sSnap.docs[0].id
             }
+
+            // 2. If there is a total amount, create a payment record
+            const totalAmt = parseFloat(String(totalAmtRaw || "0").replace(/[^0-9.-]+/g, ""))
+            if (totalAmt > 0) {
+              const paymentItems: any[] = []
+              if (parseFloat(String(inscAmt || "0")) > 0) {
+                paymentItems.push({ id: "insc-" + Date.now(), name: "Inscripción", amount: parseFloat(String(inscAmt)), type: 'fee' })
+              }
+              if (parseFloat(String(colAmt || "0")) > 0) {
+                paymentItems.push({ id: "col-" + Date.now(), name: "Colegiatura", amount: parseFloat(String(colAmt)), month: monthStr, type: 'fee' })
+              }
+              
+              // If no items were detected but there is a total, add a generic item
+              if (paymentItems.length === 0) {
+                paymentItems.push({ id: "gen-" + Date.now(), name: "Pago General", amount: totalAmt, type: 'custom' })
+              }
+
+              const studentPaymentsRef = collection(firestore, "students", studentDocId, "payments")
+              await addDoc(studentPaymentsRef, {
+                schoolId: profile.schoolId,
+                studentId: studentDocId,
+                studentName: `${fName || "Alumno"} ${lName || ""}`.trim(),
+                items: paymentItems,
+                totalAmount: totalAmt,
+                paymentDate: parseDate(String(pDateRaw)),
+                paymentMethod: pMethod,
+                receivedFrom: received || "Administración",
+                status: 'completado',
+                createdAt: serverTimestamp(),
+              })
+            }
+
+            successCount++
           } catch (err) {
-            console.error(err)
+            console.error("Error processing row:", err)
           }
-          processed++
-          setImportProgress(Math.round((processed / rows.length) * 100))
+          processedCount++
+          setImportProgress(Math.round((processedCount / rows.length) * 100))
         }
 
         setIsImporting(false)
-        toast({ title: "Importación Finalizada", description: `Se han procesado ${successCount} nuevos registros.` })
+        toast({ 
+          title: "Importación Finalizada", 
+          description: `Se han procesado ${successCount} registros y sus historiales correctamente.` 
+        })
         e.target.value = ""
       }
     })
@@ -334,7 +400,7 @@ export default function EstudiantesPage() {
           <CardContent className="py-4 flex items-center gap-4">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
             <div className="flex-1">
-              <p className="text-sm font-bold">Importando datos... {importProgress}%</p>
+              <p className="text-sm font-bold">Importando datos y pagos... {importProgress}%</p>
               <div className="w-full bg-muted h-1.5 rounded-full mt-2 overflow-hidden">
                 <div className="bg-primary h-full transition-all duration-300" style={{ width: `${importProgress}%` }} />
               </div>
