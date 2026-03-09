@@ -34,12 +34,12 @@ export default function RegisterPage() {
     firstName: "",
     lastName: "",
     schoolName: "",
-    activationCode: ""
+    activationCode: "",
+    studentIdNumber: "" // Importante para alumnos
   })
 
   React.useEffect(() => {
     setMounted(true)
-    // We need an anonymous session to query the schools collection for the activation code
     if (auth && !currentUser) {
       initiateAnonymousSignIn(auth)
     }
@@ -106,15 +106,12 @@ export default function RegisterPage() {
     setLoading(true)
     
     try {
-      // 1. Create the Auth account
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
       const user = userCredential.user
 
-      // 2. Prepare IDs
       const finalSchoolId = schoolInfo?.id || "school-" + Math.random().toString(36).substring(7)
       const schoolActivationCode = Math.random().toString(36).substring(7).toUpperCase()
 
-      // 3. If Director, create the school record
       if (selectedRole === "Administrador") {
         const schoolRef = doc(firestore, "schools", finalSchoolId)
         setDocumentNonBlocking(schoolRef, {
@@ -126,7 +123,6 @@ export default function RegisterPage() {
         }, { merge: true })
       }
 
-      // 4. Create the user's role profile
       const profileRef = doc(firestore, "staff_roles", user.uid)
       setDocumentNonBlocking(profileRef, {
         role: selectedRole,
@@ -135,6 +131,7 @@ export default function RegisterPage() {
         lastName: formData.lastName,
         email: user.email,
         uid: user.uid,
+        studentIdNumber: selectedRole === "Alumno" ? formData.studentIdNumber : null,
         createdAt: new Date().toISOString()
       }, { merge: true })
 
@@ -179,7 +176,6 @@ export default function RegisterPage() {
           </Button>
         )}
 
-        {/* STEP 1: ROLE SELECTION */}
         {step === "role" && (
           <Card className="border-none shadow-2xl">
             <CardHeader className="text-center">
@@ -212,7 +208,6 @@ export default function RegisterPage() {
           </Card>
         )}
 
-        {/* STEP 2: ACTIVATION CODE */}
         {step === "activation" && (
           <Card className="border-none shadow-2xl">
             <CardHeader className="text-center">
@@ -238,7 +233,6 @@ export default function RegisterPage() {
           </Card>
         )}
 
-        {/* STEP 3: FINAL FORM */}
         {step === "form" && (
           <Card className="border-none shadow-2xl">
             <CardHeader>
@@ -253,6 +247,12 @@ export default function RegisterPage() {
                   <div className="space-y-2">
                     <Label>Nombre de la Escuela</Label>
                     <Input required placeholder="Ej. Instituto Mexicano de Ciencias" value={formData.schoolName} onChange={(e) => setFormData({...formData, schoolName: e.target.value})} />
+                  </div>
+                )}
+                {selectedRole === "Alumno" && (
+                  <div className="space-y-2">
+                    <Label>Matrícula / ID de Estudiante</Label>
+                    <Input required placeholder="Ej. CL3-P0034" value={formData.studentIdNumber} onChange={(e) => setFormData({...formData, studentIdNumber: e.target.value})} />
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4">
