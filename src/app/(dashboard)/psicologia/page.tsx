@@ -20,6 +20,7 @@ export default function PsicologiaPage() {
   const { user } = useUser()
   const [loading, setLoading] = React.useState(false)
   const [draft, setDraft] = React.useState("")
+  const [activeTab, setActiveTab] = React.useState("nuevo")
   
   const [formData, setFormData] = React.useState({
     studentId: "",
@@ -86,6 +87,16 @@ export default function PsicologiaPage() {
     toast({ title: "Reporte eliminado" })
   }
 
+  const handleViewFullReport = (report: any) => {
+    setDraft(report.content)
+    setFormData({
+      ...formData,
+      studentId: report.studentId
+    })
+    setActiveTab("nuevo")
+    toast({ title: "Reporte cargado en el editor" })
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -93,7 +104,7 @@ export default function PsicologiaPage() {
         <p className="text-muted-foreground">Generación y seguimiento de reportes conductuales y psicopedagógicos.</p>
       </div>
 
-      <Tabs defaultValue="nuevo" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
           <TabsTrigger value="nuevo" className="gap-2">
             <Brain className="h-4 w-4" /> Nuevo Reporte
@@ -208,7 +219,7 @@ export default function PsicologiaPage() {
                   <div className="bg-muted/20 p-4 rounded-md text-sm whitespace-pre-wrap line-clamp-3">
                     {report.content}
                   </div>
-                  <Button variant="link" className="px-0 mt-2 text-primary" onClick={() => setDraft(report.content)}>
+                  <Button variant="link" className="px-0 mt-2 text-primary" onClick={() => handleViewFullReport(report)}>
                     Ver reporte completo
                   </Button>
                 </CardContent>
