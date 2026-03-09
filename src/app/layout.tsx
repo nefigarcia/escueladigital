@@ -1,6 +1,7 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import {Analytics} from '@vercel/analytics/react';
 
 export const metadata: Metadata = {
   title: 'Escuela Digital MX',
@@ -23,6 +24,7 @@ export default function RootLayout({
         <FirebaseClientProvider>
           {children}
         </FirebaseClientProvider>
+          <Analytics />
       </body>
     </html>
   );
