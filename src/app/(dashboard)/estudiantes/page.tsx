@@ -19,8 +19,6 @@ import {
   MoreVertical, 
   Edit, 
   Trash2,
-  Filter,
-  Users,
   FileUp,
   Loader2,
   History
@@ -35,7 +33,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -51,7 +48,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser, setDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser, setDocumentNonBlocking, updateDocumentNonBlocking, useDoc } from "@/firebase"
 import { collection, doc, serverTimestamp, getDocs, query, where, limit } from "firebase/firestore"
 import Papa from "papaparse"
 
@@ -64,13 +61,19 @@ export default function EstudiantesPage() {
   React.useEffect(() => {
     setMounted(true)
   }, [])
-  
-  const studentsRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, "students");
-  }, [firestore, user])
 
-  const { data: students, isLoading } = useCollection(studentsRef)
+  const profileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null
+    return doc(firestore, "staff_roles", user.uid)
+  }, [firestore, user])
+  const { data: profile } = useDoc(profileRef)
+  
+  const studentsQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.schoolId) return null;
+    return query(collection(firestore, "students"), where("schoolId", "==", profile.schoolId));
+  }, [firestore, profile])
+
+  const { data: students, isLoading } = useCollection(studentsQuery)
   
   const [searchTerm, setSearchTerm] = React.useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false)
@@ -99,7 +102,7 @@ export default function EstudiantesPage() {
   const handleAddStudent = async () => {
     const { firstName, lastName, studentIdNumber } = newStudent;
 
-    if (!firstName.trim() || !lastName.trim() || !studentIdNumber.trim()) {
+    if (!firstName.trim() || !lastName.trim() || !studentIdNumber.trim() || !profile?.schoolId) {
       toast({
         variant: "destructive",
         title: "Campos incompletos",
@@ -108,10 +111,11 @@ export default function EstudiantesPage() {
       return
     }
 
-    if (!studentsRef) return
+    if (!firestore) return
 
     try {
-      addDocumentNonBlocking(studentsRef, {
+      addDocumentNonBlocking(collection(firestore, "students"), {
+        schoolId: profile.schoolId,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         studentIdNumber: studentIdNumber.trim(),
@@ -169,7 +173,6 @@ export default function EstudiantesPage() {
     toast({ title: "Estudiante eliminado" })
   }
 
-  // Normalizador de CSV
   const getNormalizedValue = (row: any, keys: string[]) => {
     const normalizedRow = Object.keys(row).reduce((acc: any, key) => {
       const normKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -186,7 +189,7 @@ export default function EstudiantesPage() {
 
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !firestore) return
+    if (!file || !firestore || !profile?.schoolId) return
 
     setIsImporting(true)
     setImportProgress(0)
@@ -211,7 +214,6 @@ export default function EstudiantesPage() {
             const matriculaRaw = getNormalizedValue(row, ["studentIdNumber", "Matricula", "ID", "Matrícula"]);
             const fName = getNormalizedValue(row, ["firstName", "Nombre"]);
             const lName = getNormalizedValue(row, ["lastName", "Apellidos"]);
-            const cantidadRaw = getNormalizedValue(row, ["totalAmount", "totalAmount ", "Cantidad", "Monto"]);
             const grade = getNormalizedValue(row, ["gradeLevel", "Grado"]);
 
             if (!matriculaRaw) {
@@ -220,12 +222,13 @@ export default function EstudiantesPage() {
             }
 
             const cleanMatricula = String(matriculaRaw).trim()
-            const sQuery = query(collection(firestore, "students"), where("studentIdNumber", "==", cleanMatricula), limit(1))
+            const sQuery = query(collection(firestore, "students"), where("studentIdNumber", "==", cleanMatricula), where("schoolId", "==", profile.schoolId), limit(1))
             const sSnap = await getDocs(sQuery)
             
             if (sSnap.empty) {
               const newDocRef = doc(collection(firestore, "students"))
               await setDocumentNonBlocking(newDocRef, {
+                schoolId: profile.schoolId,
                 firstName: fName ? String(fName).trim() : "Alumno",
                 lastName: lName ? String(lName).trim() : "Importado",
                 studentIdNumber: cleanMatricula,
@@ -256,7 +259,7 @@ export default function EstudiantesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-headline font-bold text-primary">Gestión de Estudiantes</h2>
-          <p className="text-muted-foreground">Registro y control de la comunidad estudiantil.</p>
+          <p className="text-muted-foreground">Registro y control de la comunidad estudiantil para tu institución.</p>
         </div>
         
         <div className="flex gap-2">

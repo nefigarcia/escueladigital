@@ -19,19 +19,25 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser } from "@/firebase"
-import { collection, doc, serverTimestamp } from "firebase/firestore"
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser, useDoc } from "@/firebase"
+import { collection, doc, serverTimestamp, query, where } from "firebase/firestore"
 
 export default function TarifasPage() {
   const { firestore } = useFirestore()
   const { user } = useUser()
-  
-  const feeTypesRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, "fee_types");
-  }, [firestore, user])
 
-  const { data: fees, isLoading } = useCollection(feeTypesRef)
+  const profileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null
+    return doc(firestore, "staff_roles", user.uid)
+  }, [firestore, user])
+  const { data: profile } = useDoc(profileRef)
+  
+  const feesQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.schoolId) return null;
+    return query(collection(firestore, "fee_types"), where("schoolId", "==", profile.schoolId));
+  }, [firestore, profile])
+
+  const { data: fees, isLoading } = useCollection(feesQuery)
 
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false)
   const [newFee, setNewFee] = React.useState({
@@ -41,7 +47,7 @@ export default function TarifasPage() {
   })
 
   const handleAddFee = async () => {
-    if (!newFee.name || isNaN(newFee.baseAmount) || !feeTypesRef) {
+    if (!newFee.name || isNaN(newFee.baseAmount) || !firestore || !profile?.schoolId) {
       toast({
         variant: "destructive",
         title: "Campos inválidos",
@@ -51,8 +57,9 @@ export default function TarifasPage() {
     }
 
     try {
-      addDocumentNonBlocking(feeTypesRef, {
+      addDocumentNonBlocking(collection(firestore, "fee_types"), {
         ...newFee,
+        schoolId: profile.schoolId,
         isActive: true,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -180,7 +187,7 @@ export default function TarifasPage() {
           </Card>
         )) : (
           <div className="col-span-full text-center py-12 text-muted-foreground">
-            No hay tarifas configuradas. Comienza añadiendo una nueva.
+            No hay tarifas configuradas para esta escuela. Comienza añadiendo una nueva.
           </div>
         )}
         
