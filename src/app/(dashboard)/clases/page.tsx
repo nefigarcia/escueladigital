@@ -31,8 +31,8 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser } from "@/firebase"
-import { collection, doc, serverTimestamp, setDoc } from "firebase/firestore"
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser, useDoc } from "@/firebase"
+import { collection, doc, serverTimestamp, setDoc, query, where } from "firebase/firestore"
 import { Checkbox } from "@/components/ui/checkbox"
 
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
@@ -46,17 +46,23 @@ export default function ClasesPage() {
     setMounted(true)
   }, [])
 
-  const schedulesRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, "schedules");
+  const profileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null
+    return doc(firestore, "staff_roles", user.uid)
   }, [firestore, user])
+  const { data: profile } = useDoc(profileRef)
+
+  const schedulesRef = useMemoFirebase(() => {
+    if (!firestore || !profile?.schoolId) return null;
+    return query(collection(firestore, "schedules"), where("schoolId", "==", profile.schoolId));
+  }, [firestore, profile])
   
   const { data: schedules, isLoading } = useCollection(schedulesRef)
 
   const studentsRef = useMemoFirebase(() => {
-    if (!firestore) return null
-    return collection(firestore, "students")
-  }, [firestore])
+    if (!firestore || !profile?.schoolId) return null
+    return query(collection(firestore, "students"), where("schoolId", "==", profile.schoolId))
+  }, [firestore, profile])
   const { data: students } = useCollection(studentsRef)
 
   const [date, setDate] = React.useState<Date | undefined>(undefined)
@@ -75,7 +81,6 @@ export default function ClasesPage() {
     dayOfWeek: "Lunes",
   })
 
-  // Initialize date on mount to avoid hydration mismatch
   React.useEffect(() => {
     if (mounted && !date) {
       setDate(new Date())
@@ -83,10 +88,11 @@ export default function ClasesPage() {
   }, [mounted, date])
 
   const handleAddClass = async () => {
-    if (!newClass.subject || !newClass.teacher || !schedulesRef) return
+    if (!newClass.subject || !newClass.teacher || !profile?.schoolId || !firestore) return
 
-    addDocumentNonBlocking(schedulesRef, {
+    addDocumentNonBlocking(collection(firestore, "schedules"), {
       ...newClass,
+      schoolId: profile.schoolId,
       color: "bg-indigo-100 border-indigo-400 text-indigo-700",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -112,15 +118,14 @@ export default function ClasesPage() {
 
   const handleOpenAttendance = (cls: any) => {
     setSelectedClass(cls)
-    // Reset attendance state
     const initial: Record<string, boolean> = {}
-    students?.forEach(s => initial[s.id] = true) // Default present
+    students?.forEach(s => initial[s.id] = true)
     setAttendanceRecords(initial)
     setIsAttendanceOpen(true)
   }
 
   const handleSaveAttendance = () => {
-    if (!firestore || !selectedClass) return
+    if (!firestore || !selectedClass || !profile?.schoolId) return
 
     const attendanceId = `${selectedClass.id}_${new Date().toISOString().split('T')[0]}`
     const attendanceDocRef = doc(firestore, "attendance", attendanceId)
@@ -131,6 +136,7 @@ export default function ClasesPage() {
     }))
 
     setDoc(attendanceDocRef, {
+      schoolId: profile.schoolId,
       classId: selectedClass.id,
       className: selectedClass.subject,
       date: new Date().toISOString().split('T')[0],
@@ -157,55 +163,57 @@ export default function ClasesPage() {
           <p className="text-muted-foreground">Gestión de programación académica y control de asistencia.</p>
         </div>
         
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" /> Nueva Clase
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Programar Nueva Sesión</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label>Nombre de la Materia</Label>
-                <Input placeholder="Ej. Física Moderna" value={newClass.subject} onChange={(e) => setNewClass({...newClass, subject: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label>Docente</Label>
-                <Input placeholder="Ej. Dr. Mario Moreno" value={newClass.teacher} onChange={(e) => setNewClass({...newClass, teacher: e.target.value})} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+        {profile?.role !== "Alumno" && (
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" /> Nueva Clase
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Programar Nueva Sesión</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
                 <div className="space-y-2">
-                  <Label>Salón</Label>
-                  <Input placeholder="Aula 301" value={newClass.room} onChange={(e) => setNewClass({...newClass, room: e.target.value})} />
+                  <Label>Nombre de la Materia</Label>
+                  <Input placeholder="Ej. Física Moderna" value={newClass.subject} onChange={(e) => setNewClass({...newClass, subject: e.target.value})} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Día</Label>
-                  <Select value={newClass.dayOfWeek} onValueChange={(v) => setNewClass({...newClass, dayOfWeek: v})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{DAYS.map(day => <SelectItem key={day} value={day}>{day}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Label>Docente</Label>
+                  <Input placeholder="Ej. Dr. Mario Moreno" value={newClass.teacher} onChange={(e) => setNewClass({...newClass, teacher: e.target.value})} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Salón</Label>
+                    <Input placeholder="Aula 301" value={newClass.room} onChange={(e) => setNewClass({...newClass, room: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Día</Label>
+                    <Select value={newClass.dayOfWeek} onValueChange={(v) => setNewClass({...newClass, dayOfWeek: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{DAYS.map(day => <SelectItem key={day} value={day}>{day}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Inicio</Label>
+                    <Input type="time" value={newClass.startTime} onChange={(e) => setNewClass({...newClass, startTime: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fin</Label>
+                    <Input type="time" value={newClass.endTime} onChange={(e) => setNewClass({...newClass, endTime: e.target.value})} />
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Inicio</Label>
-                  <Input type="time" value={newClass.startTime} onChange={(e) => setNewClass({...newClass, startTime: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Fin</Label>
-                  <Input type="time" value={newClass.endTime} onChange={(e) => setNewClass({...newClass, endTime: e.target.value})} />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={handleAddClass}>Guardar Horario</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
+                <Button onClick={handleAddClass}>Guardar Horario</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
@@ -257,12 +265,14 @@ export default function ClasesPage() {
                           <div className="flex items-center gap-1.5"><User className="h-4 w-4" />{item.teacher}</div>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="secondary" className="gap-2" onClick={() => handleOpenAttendance(item)}>
-                          <CheckSquare className="h-4 w-4" /> Asistencia
-                        </Button>
-                        <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleDeleteClass(item.id)}>Eliminar</Button>
-                      </div>
+                      {profile?.role !== "Alumno" && (
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="secondary" className="gap-2" onClick={() => handleOpenAttendance(item)}>
+                            <CheckSquare className="h-4 w-4" /> Asistencia
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleDeleteClass(item.id)}>Eliminar</Button>
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
@@ -277,7 +287,6 @@ export default function ClasesPage() {
         </div>
       </div>
 
-      {/* Attendance Modal */}
       <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>

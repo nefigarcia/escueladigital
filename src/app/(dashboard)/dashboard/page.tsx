@@ -36,12 +36,15 @@ export default function DashboardPage() {
 
   const { data: school } = useDoc(schoolRef)
 
-  // Contextual Data for Students
   const isStudent = profile?.role === "Alumno"
   
   const studentDataQuery = useMemoFirebase(() => {
-    if (!firestore || !isStudent || !profile?.studentIdNumber) return null
-    return query(collection(firestore, "students"), where("studentIdNumber", "==", profile.studentIdNumber))
+    if (!firestore || !isStudent || !profile?.studentIdNumber || !profile?.schoolId) return null
+    return query(
+      collection(firestore, "students"), 
+      where("schoolId", "==", profile.schoolId),
+      where("studentIdNumber", "==", profile.studentIdNumber)
+    )
   }, [firestore, isStudent, profile])
 
   const { data: studentRecords } = useCollection(studentDataQuery)

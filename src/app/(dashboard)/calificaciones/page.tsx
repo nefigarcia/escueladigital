@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from "@/firebase"
-import { collection, query, where, serverTimestamp } from "firebase/firestore"
+import { collection, query, where, serverTimestamp, doc } from "firebase/firestore"
 import { toast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 
@@ -40,16 +40,22 @@ export default function CalificacionesPage() {
 
   const isStudent = profile?.role === "Alumno"
 
-  const studentsRef = useMemoFirebase(() => firestore ? collection(firestore, "students") : null, [firestore])
-  const { data: students } = useCollection(studentsRef)
+  const studentsQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.schoolId) return null
+    return query(collection(firestore, "students"), where("schoolId", "==", profile.schoolId))
+  }, [firestore, profile])
+  const { data: students } = useCollection(studentsQuery)
 
   const gradesQuery = useMemoFirebase(() => {
-    if (!firestore) return null
+    if (!firestore || !profile?.schoolId) return null
     if (isStudent && profile?.studentIdNumber) {
-      // Find internal ID for studentIdNumber
-      return query(collection(firestore, "grades"), where("studentIdNumber", "==", profile.studentIdNumber))
+      return query(
+        collection(firestore, "grades"), 
+        where("schoolId", "==", profile.schoolId),
+        where("studentIdNumber", "==", profile.studentIdNumber)
+      )
     }
-    return collection(firestore, "grades")
+    return query(collection(firestore, "grades"), where("schoolId", "==", profile.schoolId))
   }, [firestore, isStudent, profile])
 
   const { data: grades, isLoading } = useCollection(gradesQuery)
@@ -63,12 +69,13 @@ export default function CalificacionesPage() {
   })
 
   const handleAddGrade = () => {
-    if (!newGrade.studentId || !newGrade.score || !firestore) return
+    if (!newGrade.studentId || !newGrade.score || !firestore || !profile?.schoolId) return
 
     const student = students?.find(s => s.id === newGrade.studentId)
     
     addDocumentNonBlocking(collection(firestore, "grades"), {
       ...newGrade,
+      schoolId: profile.schoolId,
       studentIdNumber: student?.studentIdNumber,
       studentName: `${student?.firstName} ${student?.lastName}`,
       teacherId: user?.uid,

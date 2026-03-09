@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Brain, Sparkles, FileText, History, Loader2, Save, Trash2 } from "lucide-react"
 import { generatePsychologyReport } from "@/ai/flows/student-psychology-report"
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser } from "@/firebase"
-import { collection, query, orderBy, serverTimestamp, doc } from "firebase/firestore"
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser, useDoc } from "@/firebase"
+import { collection, query, orderBy, serverTimestamp, doc, where } from "firebase/firestore"
 import { toast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -28,14 +28,27 @@ export default function PsicologiaPage() {
     tone: "profesional" as const,
   })
 
-  const studentsRef = useMemoFirebase(() => firestore ? collection(firestore, "students") : null, [firestore])
-  const { data: students } = useCollection(studentsRef)
-
-  const reportsRef = useMemoFirebase(() => {
+  const profileRef = useMemoFirebase(() => {
     if (!firestore || !user) return null
-    return query(collection(firestore, "psychology_reports"), orderBy("createdAt", "desc"))
+    return doc(firestore, "staff_roles", user.uid)
   }, [firestore, user])
-  const { data: pastReports } = useCollection(reportsRef)
+  const { data: profile } = useDoc(profileRef)
+
+  const studentsQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.schoolId) return null
+    return query(collection(firestore, "students"), where("schoolId", "==", profile.schoolId))
+  }, [firestore, profile])
+  const { data: students } = useCollection(studentsQuery)
+
+  const reportsQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.schoolId) return null
+    return query(
+      collection(firestore, "psychology_reports"), 
+      where("schoolId", "==", profile.schoolId),
+      orderBy("createdAt", "desc")
+    )
+  }, [firestore, profile])
+  const { data: pastReports } = useCollection(reportsQuery)
 
   const handleGenerate = async () => {
     if (!formData.studentId || !formData.observations) {
@@ -62,10 +75,11 @@ export default function PsicologiaPage() {
   }
 
   const handleSave = () => {
-    if (!draft || !firestore || !user) return
+    if (!draft || !firestore || !user || !profile?.schoolId) return
     const student = students?.find(s => s.id === formData.studentId)
     
     addDocumentNonBlocking(collection(firestore, "psychology_reports"), {
+      schoolId: profile.schoolId,
       studentId: formData.studentId,
       studentName: `${student?.firstName} ${student?.lastName}`,
       content: draft,

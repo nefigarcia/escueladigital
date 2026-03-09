@@ -66,7 +66,6 @@ export default function PagosPage() {
   const pdfTemplateRef = React.useRef<HTMLDivElement>(null)
   const [pdfData, setPdfData] = React.useState<any>(null)
 
-  // Edit State
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false)
   const [editingPayment, setEditingPayment] = React.useState<any | null>(null)
   const [editItems, setEditItems] = React.useState<PaymentItem[]>([])
@@ -87,11 +86,17 @@ export default function PagosPage() {
   }, [firestore, profile])
   const { data: school } = useDoc(schoolRef)
   
-  const studentsRef = useMemoFirebase(() => firestore ? collection(firestore, "students") : null, [firestore])
-  const feeTypesRef = useMemoFirebase(() => firestore ? collection(firestore, "fee_types") : null, [firestore])
-  
-  const { data: students } = useCollection(studentsRef)
-  const { data: fees } = useCollection(feeTypesRef)
+  const studentsQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.schoolId) return null
+    return query(collection(firestore, "students"), where("schoolId", "==", profile.schoolId))
+  }, [firestore, profile])
+  const { data: students } = useCollection(studentsQuery)
+
+  const feeTypesQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.schoolId) return null
+    return query(collection(firestore, "fee_types"), where("schoolId", "==", profile.schoolId))
+  }, [firestore, profile])
+  const { data: fees } = useCollection(feeTypesQuery)
 
   const isStudent = profile?.role === "Alumno"
 
@@ -107,16 +112,21 @@ export default function PagosPage() {
     { id: Math.random().toString(36).substr(2, 9), type: 'fee', name: '', amount: 0 }
   ])
 
-  // Logic for Edit total
   const editTotalAmount = editItems.reduce((sum, item) => sum + item.amount, 0)
 
   const paymentsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !profile?.schoolId) return null;
     if (isStudent && profile?.studentIdNumber) {
-       return query(collection(firestore, "grades"), where("studentIdNumber", "==", profile.studentIdNumber))
+       return query(
+         collection(firestore, "students", profile.studentIdNumber, "payments"),
+         where("schoolId", "==", profile.schoolId)
+       )
     }
     if (selectedStudent) {
-      return collection(firestore, "students", selectedStudent.id, "payments");
+      return query(
+        collection(firestore, "students", selectedStudent.id, "payments"),
+        where("schoolId", "==", profile.schoolId)
+      );
     }
     return null;
   }, [firestore, selectedStudent, isStudent, profile])
@@ -182,12 +192,13 @@ export default function PagosPage() {
   }
 
   const handleProcessPayment = async () => {
-    if (!selectedStudent || formTotal <= 0 || !firestore) return
+    if (!selectedStudent || formTotal <= 0 || !firestore || !profile?.schoolId) return
     setIsProcessing(true)
     
     try {
       const studentPaymentsRef = collection(firestore, "students", selectedStudent.id, "payments")
       const paymentData = {
+        schoolId: profile.schoolId,
         studentId: selectedStudent.id,
         studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
         items: items,
@@ -635,7 +646,6 @@ export default function PagosPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit Payment Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
