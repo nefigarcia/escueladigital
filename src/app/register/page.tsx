@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -39,6 +40,29 @@ export default function RegisterPage() {
   React.useEffect(() => {
     setMounted(true)
   }, [])
+
+  const mapAuthError = (code: string) => {
+    switch (code) {
+      case "auth/invalid-email":
+        return "El formato del correo electrónico no es válido (ejemplo: usuario@escuela.com)."
+      case "auth/email-already-in-use":
+        return "Este correo ya está registrado en el sistema."
+      case "auth/weak-password":
+        return "La contraseña es muy débil. Debe tener al menos 6 caracteres."
+      case "auth/network-request-failed":
+        return "Error de conexión. Revisa tu internet."
+      default:
+        return "Ocurrió un error inesperado al crear tu cuenta."
+    }
+  }
+
+  const validateEmail = (email: string) => {
+    return String(email)
+      .toLowerCase()
+      .match(
+        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+      );
+  }
 
   if (!mounted) {
     return (
@@ -97,6 +121,16 @@ export default function RegisterPage() {
     e.preventDefault()
     if (!auth || !firestore || !selectedRole) return
 
+    // Client-side validations
+    if (!validateEmail(formData.email)) {
+      toast({
+        variant: "destructive",
+        title: "Correo Inválido",
+        description: "Por favor ingresa un correo electrónico válido (ejemplo: usuario@dominio.com).",
+      })
+      return
+    }
+
     if (formData.password.length < 6) {
       toast({
         variant: "destructive",
@@ -142,18 +176,18 @@ export default function RegisterPage() {
       }, { merge: true })
 
       toast({
-        title: "¡Configuración completada!",
-        description: "Bienvenido al sistema.",
+        title: "¡Registro exitoso!",
+        description: "Configuración completada correctamente.",
       })
       
-      // Navigate only after all writes are done
       router.push("/dashboard")
 
     } catch (err: any) {
+      console.error("Registration error:", err)
       toast({
         variant: "destructive",
         title: "Error de Registro",
-        description: err.message || "No se pudo crear la cuenta.",
+        description: mapAuthError(err.code),
       })
     } finally {
       setLoading(false)

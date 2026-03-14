@@ -25,6 +25,21 @@ export default function LoginPage() {
     if (user) router.push("/dashboard")
   }, [user, router])
 
+  const mapAuthError = (code: string) => {
+    switch (code) {
+      case "auth/invalid-email":
+        return "El correo electrónico ingresado no tiene un formato válido."
+      case "auth/user-not-found":
+      case "auth/wrong-password":
+      case "auth/invalid-credential":
+        return "El correo o la contraseña son incorrectos."
+      case "auth/too-many-requests":
+        return "Demasiados intentos fallidos. Por favor, intenta más tarde."
+      default:
+        return "Ocurrió un error al intentar iniciar sesión."
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!auth) return
@@ -41,11 +56,12 @@ export default function LoginPage() {
         description: "Bienvenido de nuevo.",
       })
     } catch (error: any) {
+      console.error("Login error:", error)
       setLoading(false)
       toast({
         variant: "destructive",
         title: "Error de acceso",
-        description: "El correo o la contraseña son incorrectos.",
+        description: mapAuthError(error.code),
       })
     }
   }
