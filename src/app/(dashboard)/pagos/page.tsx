@@ -17,7 +17,9 @@ import {
   Loader2,
   MessageCircle,
   Plus,
-  Trash2
+  Trash2,
+  CalendarDays,
+  UserCircle
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -29,6 +31,7 @@ import { numberToWords } from "@/lib/number-to-words"
 import { smartParentCommunicationsDrafting } from "@/ai/flows/smart-parent-communications-drafting"
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface PaymentItem {
   id: string;
@@ -321,7 +324,7 @@ export default function PagosPage() {
                   </div>
                 </div>
               </div>
-              <div className="bg-slate-50 p-8 rounded-xl border border-black/5 mb-12">
+              <div className="bg-slate-50 p-8 rounded-xl border border-black/10 mb-12">
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-xl font-bold uppercase">Total Pagado:</span>
                   <span className="text-3xl font-black">${(pdfData.payment.totalAmount || 0).toLocaleString()} MXN</span>
@@ -349,7 +352,8 @@ export default function PagosPage() {
         </TabsList>
 
         <TabsContent value="nuevo-pago">
-           <Card className="border-none shadow-md max-w-3xl">
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Card className="border-none shadow-md lg:col-span-2">
               <CardHeader className="bg-primary/5 border-b">
                 <CardTitle className="font-headline">Nueva Transacción</CardTitle>
                 <CardDescription>Completa los detalles para generar el recibo oficial.</CardDescription>
@@ -435,7 +439,62 @@ export default function PagosPage() {
                   Registrar Pago
                 </Button>
               </CardFooter>
-           </Card>
+            </Card>
+
+            {/* Sidebar: Resumen Estudiantil */}
+            <div className="space-y-6">
+              {selectedStudent ? (
+                <>
+                  <Card className="border-none shadow-lg overflow-hidden bg-primary text-primary-foreground">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="font-headline text-2xl">Resumen Estudiantil</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-14 w-14 border-2 border-white/20 bg-white/10 text-white">
+                          <AvatarFallback><UserCircle className="h-10 w-10" /></AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-bold text-lg leading-tight">{selectedStudent.firstName} {selectedStudent.lastName}</p>
+                          <p className="text-sm opacity-80">Grado: {selectedStudent.gradeLevel}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="h-px bg-white/20" />
+                      
+                      <div className="space-y-1">
+                        <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">SALDO TOTAL PENDIENTE</p>
+                        <p className="text-4xl font-black tracking-tight">${Number(selectedStudent.outstandingBalance || 0).toLocaleString()} MXN</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-none shadow-md bg-white">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-headline text-xl text-primary">Próximos Vencimientos</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between py-2 border-b">
+                          <span className="text-sm text-muted-foreground">Ene 20 - Mensualidad</span>
+                          <Badge variant="destructive" className="rounded-full px-4 h-6 uppercase text-[9px]">Hoy</Badge>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b">
+                          <span className="text-sm text-muted-foreground">Feb 01 - Materiales</span>
+                          <span className="text-xs font-bold text-slate-600">Faltan 11 días</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-xl bg-muted/10 opacity-40">
+                  <User className="h-12 w-12 mb-4" />
+                  <p className="text-center text-sm font-medium">Busca un estudiante para ver su resumen financiero.</p>
+                </div>
+              )}
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="historial">
