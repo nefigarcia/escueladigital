@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { GraduationCap, ShieldCheck, Users, UserCircle, ArrowLeft, Loader2, AlertCircle } from "lucide-react"
+import { GraduationCap, ShieldCheck, Users, UserCircle, ArrowLeft, Loader2, AlertCircle, CheckCircle2 } from "lucide-react"
 import { useAuth, useFirestore } from "@/firebase"
 import { doc, collection, query, where, getDocs, limit, serverTimestamp, setDoc } from "firebase/firestore"
 import { toast } from "@/hooks/use-toast"
@@ -44,32 +44,14 @@ export default function RegisterPage() {
   const mapAuthError = (code: string) => {
     switch (code) {
       case "auth/invalid-email":
-        return "El formato del correo electrónico no es válido (ejemplo: usuario@escuela.com)."
+        return "El formato del correo electrónico no es válido."
       case "auth/email-already-in-use":
         return "Este correo ya está registrado en el sistema."
       case "auth/weak-password":
-        return "La contraseña es muy débil. Debe tener al menos 6 caracteres."
-      case "auth/network-request-failed":
-        return "Error de conexión. Revisa tu internet."
+        return "La contraseña es muy débil (mínimo 6 caracteres)."
       default:
         return "Ocurrió un error inesperado al crear tu cuenta."
     }
-  }
-
-  const validateEmail = (email: string) => {
-    return String(email)
-      .toLowerCase()
-      .match(
-        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
-      );
-  }
-
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
   }
 
   const handleSelectRole = (role: Role) => {
@@ -87,7 +69,7 @@ export default function RegisterPage() {
     
     try {
       const schoolsRef = collection(firestore, "schools")
-      const q = query(schoolsRef, where("activationCode", "==", formData.activationCode.trim()), limit(1))
+      const q = query(schoolsRef, where("activationCode", "==", formData.activationCode.trim().toUpperCase()), limit(1))
       const querySnapshot = await getDocs(q)
       
       if (!querySnapshot.empty) {
@@ -96,21 +78,21 @@ export default function RegisterPage() {
         setSchoolInfo({ id: schoolDoc.id, name: data.name })
         setStep("form")
         toast({
-          title: "Código válido",
-          description: `Te unirás a: ${data.name}`,
+          title: "Código Verificado",
+          description: `Institución encontrada: ${data.name}`,
         })
       } else {
         toast({
           variant: "destructive",
-          title: "Código inválido",
-          description: "No se encontró ninguna escuela con ese código.",
+          title: "Código Inválido",
+          description: "No se encontró ninguna escuela vinculada a este código.",
         })
       }
     } catch (err: any) {
       toast({
         variant: "destructive",
-        title: "Error de verificación",
-        description: "Hubo un problema al validar el código.",
+        title: "Error de Red",
+        description: "No se pudo verificar el código en este momento.",
       })
     } finally {
       setLoading(false)
@@ -121,48 +103,34 @@ export default function RegisterPage() {
     e.preventDefault()
     if (!auth || !firestore || !selectedRole) return
 
-    // Client-side validations
-    if (!validateEmail(formData.email)) {
-      toast({
-        variant: "destructive",
-        title: "Correo Inválido",
-        description: "Por favor ingresa un correo electrónico válido (ejemplo: usuario@dominio.com).",
-      })
-      return
-    }
-
-    if (formData.password.length < 6) {
-      toast({
-        variant: "destructive",
-        title: "Contraseña corta",
-        description: "La contraseña debe tener al menos 6 caracteres.",
-      })
-      return
-    }
-
     setLoading(true)
     
     try {
-      // 1. Create User
+      // 1. Create the Auth User
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
       const user = userCredential.user
 
-      const finalSchoolId = schoolInfo?.id || "school-" + Math.random().toString(36).substring(7)
-      const schoolActivationCode = Math.random().toString(36).substring(7).toUpperCase()
-
-      // 2. Create School if Administrator
+      let finalSchoolId = schoolInfo?.id;
+      
+      // 2. If Administrator, create the school first
       if (selectedRole === "Administrador") {
-        const schoolRef = doc(firestore, "schools", finalSchoolId)
-        await setDoc(schoolRef, {
+        const newSchoolRef = doc(collection(firestore, "schools"))
+        finalSchoolId = newSchoolRef.id
+        const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase()
+        
+        await setDoc(newSchoolRef, {
           id: finalSchoolId,
           name: formData.schoolName || "Nueva Escuela",
-          activationCode: schoolActivationCode,
+          activationCode: generatedCode,
           directorId: user.uid,
-          createdAt: serverTimestamp()
-        }, { merge: true })
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
       }
 
-      // 3. Create Profile
+      if (!finalSchoolId) throw new Error("No school ID found")
+
+      // 3. Create the Staff/Student Role Profile
       const profileRef = doc(firestore, "staff_roles", user.uid)
       await setDoc(profileRef, {
         role: selectedRole,
@@ -172,12 +140,13 @@ export default function RegisterPage() {
         email: user.email,
         uid: user.uid,
         studentIdNumber: selectedRole === "Alumno" ? formData.studentIdNumber : null,
-        createdAt: serverTimestamp()
-      }, { merge: true })
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
 
       toast({
-        title: "¡Registro exitoso!",
-        description: "Configuración completada correctamente.",
+        title: "¡Bienvenido!",
+        description: "Tu cuenta ha sido creada exitosamente.",
       })
       
       router.push("/dashboard")
@@ -194,24 +163,14 @@ export default function RegisterPage() {
     }
   }
 
-  const isConfigInvalid = !auth || !firestore || auth.app.options.projectId === 'dummy';
+  if (!mounted) return null
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 bg-gradient-to-br from-primary/5 via-background to-accent/5">
       <div className="w-full max-w-[500px] space-y-6">
         
-        {isConfigInvalid && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Servicios No Disponibles</AlertTitle>
-            <AlertDescription>
-              Configuración de Firebase inválida. Verifica tu entorno.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {step !== "role" && !loading && (
-          <Button variant="ghost" className="gap-2" onClick={() => setStep(step === "form" && selectedRole !== "Administrador" ? "activation" : "role")}>
+        {step !== "role" && (
+          <Button variant="ghost" className="gap-2 mb-2" onClick={() => setStep(step === "form" && selectedRole !== "Administrador" ? "activation" : "role")}>
             <ArrowLeft className="h-4 w-4" /> Volver
           </Button>
         )}
@@ -222,26 +181,26 @@ export default function RegisterPage() {
               <div className="flex justify-center mb-4">
                 <GraduationCap className="h-12 w-12 text-primary" />
               </div>
-              <CardTitle className="text-3xl font-headline font-bold">Únete a la Plataforma</CardTitle>
-              <CardDescription>Selecciona tu función para comenzar</CardDescription>
+              <CardTitle className="text-3xl font-headline font-bold">Registro de Usuario</CardTitle>
+              <CardDescription>Selecciona tu perfil para continuar</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
               <RoleButton 
                 icon={<ShieldCheck className="h-8 w-8" />} 
                 title="Directivo / Administrador" 
-                description="Registra tu escuela y gestiona todo el plantel" 
+                description="Registra una nueva institución y gestiona el plantel" 
                 onClick={() => handleSelectRole("Administrador")} 
               />
               <RoleButton 
                 icon={<Users className="h-8 w-8" />} 
-                title="Profesor / Académico" 
-                description="Accede a tus clases con un código de escuela" 
+                title="Personal Académico" 
+                description="Únete a una escuela existente con tu código de acceso" 
                 onClick={() => handleSelectRole("Academico")} 
               />
               <RoleButton 
                 icon={<UserCircle className="h-8 w-8" />} 
                 title="Alumno" 
-                description="Consulta tus pagos y horarios con tu código" 
+                description="Consulta tus calificaciones y pagos institucionales" 
                 onClick={() => handleSelectRole("Alumno")} 
               />
             </CardContent>
@@ -252,16 +211,16 @@ export default function RegisterPage() {
           <Card className="border-none shadow-2xl">
             <CardHeader className="text-center">
               <CardTitle className="text-2xl font-headline font-bold">Código de Activación</CardTitle>
-              <CardDescription>Pregunta por el código a tu escuela para unirte.</CardDescription>
+              <CardDescription>Ingresa el código proporcionado por tu escuela.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Introduce el Código</Label>
+                <Label>Código Escolar</Label>
                 <Input 
-                  placeholder="Ej. AB123X" 
+                  placeholder="Ej. XM92JK" 
                   className="h-12 text-center text-xl font-bold uppercase tracking-widest"
                   value={formData.activationCode}
-                  onChange={(e) => setFormData({...formData, activationCode: e.target.value.toUpperCase()})}
+                  onChange={(e) => setFormData({...formData, activationCode: e.target.value})}
                 />
               </div>
             </CardContent>
@@ -276,9 +235,9 @@ export default function RegisterPage() {
         {step === "form" && (
           <Card className="border-none shadow-2xl">
             <CardHeader>
-              <CardTitle className="text-2xl font-headline">Crea tu Cuenta</CardTitle>
+              <CardTitle className="text-2xl font-headline">Datos de la Cuenta</CardTitle>
               <CardDescription>
-                {selectedRole === "Administrador" ? "Configura tu nueva institución" : `Uniéndote a: ${schoolInfo?.name}`}
+                {selectedRole === "Administrador" ? "Configura tu nueva institución" : `Vinculando con: ${schoolInfo?.name}`}
               </CardDescription>
             </CardHeader>
             <form onSubmit={handleRegister}>
@@ -292,22 +251,23 @@ export default function RegisterPage() {
                 {selectedRole === "Alumno" && (
                   <div className="space-y-2">
                     <Label>Matrícula / ID de Estudiante</Label>
-                    <Input required placeholder="Ej. CL3-P0034" value={formData.studentIdNumber} onChange={(e) => setFormData({...formData, studentIdNumber: e.target.value})} />
+                    <Input required placeholder="Ej. 2024-001" value={formData.studentIdNumber} onChange={(e) => setFormData({...formData, studentIdNumber: e.target.value})} />
+                    <p className="text-[10px] text-muted-foreground">Esta matrícula debe coincidir con la registrada en la administración.</p>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Nombre(s)</Label>
-                    <Input required placeholder="Juan" value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} />
+                    <Input required placeholder="Nombres" value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <Label>Apellidos</Label>
-                    <Input required placeholder="Pérez" value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} />
+                    <Input required placeholder="Apellidos" value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Correo Electrónico</Label>
-                  <Input type="email" required placeholder="tu@email.com" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+                  <Input type="email" required placeholder="correo@ejemplo.com" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <Label>Contraseña</Label>
@@ -315,7 +275,7 @@ export default function RegisterPage() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button className="w-full h-11 text-lg font-bold" type="submit" disabled={loading || isConfigInvalid}>
+                <Button className="w-full h-11 text-lg font-bold" type="submit" disabled={loading}>
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Finalizar Registro"}
                 </Button>
               </CardFooter>
