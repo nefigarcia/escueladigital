@@ -67,10 +67,7 @@ export default function PagosPage() {
 
   React.useEffect(() => {
     setMounted(true)
-    if (initialStudentId) {
-      handleSearchStudent(initialStudentId)
-    }
-  }, [initialStudentId])
+  }, [])
 
   const profileRef = useMemoFirebase(() => {
     if (!firestore || !user) return null
@@ -78,16 +75,19 @@ export default function PagosPage() {
   }, [firestore, user])
   const { data: profile } = useDoc(profileRef)
 
+  const isStudent = profile?.role === "Alumno"
+
   const schoolRef = useMemoFirebase(() => {
     if (!firestore || !profile?.schoolId) return null
     return doc(firestore, "schools", profile.schoolId)
   }, [firestore, profile])
   const { data: school } = useDoc(schoolRef)
   
+  // Only fetch students if the user is NOT a student (Admins/Academicos)
   const studentsQuery = useMemoFirebase(() => {
-    if (!firestore || !profile?.schoolId) return null
+    if (!firestore || !profile?.schoolId || isStudent) return null
     return query(collection(firestore, "students"), where("schoolId", "==", profile.schoolId))
-  }, [firestore, profile])
+  }, [firestore, profile, isStudent])
   const { data: students } = useCollection(studentsQuery)
 
   const feeTypesQuery = useMemoFirebase(() => {
@@ -95,8 +95,6 @@ export default function PagosPage() {
     return query(collection(firestore, "fee_types"), where("schoolId", "==", profile.schoolId))
   }, [firestore, profile])
   const { data: fees } = useCollection(feeTypesQuery)
-
-  const isStudent = profile?.role === "Alumno"
 
   // Real-time Selected Student Document
   const selectedStudentRef = useMemoFirebase(() => {
@@ -114,13 +112,16 @@ export default function PagosPage() {
     { id: Math.random().toString(36).substr(2, 9), type: 'fee', name: '', amount: 0, month: MONTHS[new Date().getMonth()] }
   ])
 
-  // If the user is a student, automatically set their ID
+  // Handle initialStudentId from URL or auto-load student profile
   React.useEffect(() => {
-    if (isStudent && profile?.studentIdNumber && students) {
-      const student = students.find(s => s.studentIdNumber === profile.studentIdNumber)
-      if (student) setActiveStudentId(student.id)
+    if (!mounted) return;
+
+    if (isStudent && profile?.studentIdNumber && !activeStudentId) {
+      handleSearchStudent(profile.studentIdNumber);
+    } else if (initialStudentId && !activeStudentId) {
+      handleSearchStudent(initialStudentId);
     }
-  }, [isStudent, profile, students])
+  }, [mounted, isStudent, profile, initialStudentId]);
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !activeStudentId) return null;
@@ -133,17 +134,28 @@ export default function PagosPage() {
   const { data: payments, isLoading: isLoadingPayments } = useCollection(paymentsQuery)
 
   const handleSearchStudent = async (idToSearch?: string) => {
-    const searchId = typeof idToSearch === 'string' ? idToSearch : selectedStudentId
-    if (!searchId || !students) return
+    const searchId = idToSearch || selectedStudentId
+    if (!searchId || !firestore || !profile?.schoolId) return
 
-    const student = students.find(s => s.studentIdNumber === searchId)
-    if (student) {
-      setActiveStudentId(student.id)
-      setReceivedFrom(student.guardianName || "")
-      toast({ title: "Alumno encontrado" })
-    } else {
-      setActiveStudentId(null)
-      toast({ variant: "destructive", title: "No encontrado", description: "Verifica la matrícula e intenta de nuevo." })
+    try {
+      const q = query(
+        collection(firestore, "students"), 
+        where("schoolId", "==", profile.schoolId),
+        where("studentIdNumber", "==", searchId),
+        limit(1)
+      )
+      const snap = await getDocs(q)
+      if (!snap.empty) {
+        const studentDoc = snap.docs[0]
+        setActiveStudentId(studentDoc.id)
+        setReceivedFrom(studentDoc.data().guardianName || "")
+        if (!idToSearch) toast({ title: "Alumno encontrado" })
+      } else {
+        setActiveStudentId(null)
+        if (!idToSearch) toast({ variant: "destructive", title: "No encontrado", description: "Verifica la matrícula." })
+      }
+    } catch (e) {
+      console.error(e)
     }
   }
 
@@ -454,7 +466,7 @@ export default function PagosPage() {
               </CardFooter>
             </Card>
 
-            {/* Sidebar: Resumen Estudiantil con DATA REAL */}
+            {/* Sidebar: Resumen Estudiantil */}
             <div className="space-y-6">
               {activeStudent ? (
                 <>
@@ -519,13 +531,6 @@ export default function PagosPage() {
                             <Badge variant="outline" className="text-emerald-600 border-emerald-200 rounded-full px-4 h-6 uppercase text-[9px]">Cubierto</Badge>
                           )}
                         </div>
-                        <div className="flex items-center justify-between py-2">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold">Colegiatura {MONTHS[(new Date().getMonth() + 1) % 12]}</span>
-                            <span className="text-[10px] text-muted-foreground uppercase">Fecha límite: Día 10</span>
-                          </div>
-                          <span className="text-[10px] font-bold text-slate-500 uppercase">Programado</span>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -533,7 +538,7 @@ export default function PagosPage() {
               ) : (
                 <div className="h-full flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-xl bg-muted/10 opacity-40 text-center">
                   <UserCircle className="h-16 w-16 mb-4" />
-                  <p className="text-sm font-medium">Busca un estudiante para ver su resumen financiero y estatus real de cuenta.</p>
+                  <p className="text-sm font-medium">Busca un estudiante para ver su resumen financiero.</p>
                 </div>
               )}
             </div>
@@ -607,14 +612,7 @@ export default function PagosPage() {
                     )) : (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
-                          {activeStudent ? (
-                            <div className="flex flex-col items-center gap-2">
-                              <History className="h-10 w-10 opacity-20" />
-                              <p>Este estudiante no tiene transacciones registradas.</p>
-                            </div>
-                          ) : (
-                            "Por favor selecciona un alumno arriba para ver su historial financiero."
-                          )}
+                          {activeStudent ? "No hay transacciones registradas." : "Selecciona un alumno para ver su historial."}
                         </TableCell>
                       </TableRow>
                     )}

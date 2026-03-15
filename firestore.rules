@@ -28,7 +28,7 @@ service cloud.firestore {
     }
 
     function isOperationalStaff() {
-      return isAdmin() || hasRole('Secretario') || hasRole('Contador') || hasRole('Academico');
+      return isAdmin() || hasRole('Academico');
     }
 
     function isOwner(userId) {
@@ -42,8 +42,8 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /schools/{schoolId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      // Allow public read to verify activation codes during registration
+      allow read: if true;
       allow create: if isSignedIn();
       allow update, delete: if isAdmin() && resource.data.directorId == request.auth.uid;
     }
@@ -57,8 +57,8 @@ service cloud.firestore {
     }
 
     match /students/{studentId} {
-      // Admins/Staff pueden leer todo en su escuela. 
-      // Alumnos pueden leer su propio registro basado en studentIdNumber.
+      // Admins/Staff can read all in their school. 
+      // Alumnos can only read their own record based on studentIdNumber.
       allow read: if isSignedIn() && (
         ((isOperationalStaff() || isAdmin()) && isSameSchool(resource.data)) ||
         (hasRole('Alumno') && isSameSchool(resource.data) && resource.data.studentIdNumber == getStaffRoleData().studentIdNumber)
@@ -69,7 +69,6 @@ service cloud.firestore {
       allow delete: if isAdmin() && isSameSchool(resource.data);
       
       match /payments/{paymentId} {
-        // Alumnos pueden leer sus propios pagos.
         allow read: if isSignedIn() && (
           ((isOperationalStaff() || isAdmin()) && isSameSchool(get(/databases/$(database)/documents/students/$(studentId)).data)) ||
           (hasRole('Alumno') && isSameSchool(get(/databases/$(database)/documents/students/$(studentId)).data) && get(/databases/$(database)/documents/students/$(studentId)).data.studentIdNumber == getStaffRoleData().studentIdNumber)
@@ -80,7 +79,7 @@ service cloud.firestore {
 
     match /fee_types/{id} {
       allow read: if isSignedIn() && isSameSchool(resource.data);
-      allow create: if isSignedIn() && (isAdmin() || hasRole('Contador')) && request.resource.data.schoolId == getStaffRoleData().schoolId;
+      allow create: if isSignedIn() && isAdmin() && request.resource.data.schoolId == getStaffRoleData().schoolId;
       allow update, delete: if isSignedIn() && isAdmin() && isSameSchool(resource.data);
     }
     
