@@ -120,6 +120,17 @@ export default function ClasesPage() {
     }
   }, [mounted, date])
 
+  // Sync selectedDay with calendar interaction
+  React.useEffect(() => {
+    if (date) {
+      const dayIndex = date.getDay(); // 0 is Sunday, 1 is Monday...
+      const dayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+      const dayName = dayNames[dayIndex];
+      // Only set if it's a weekday, but let's allow setting it to show "No class" on weekends
+      setSelectedDay(dayName);
+    }
+  }, [date]);
+
   // Sync unique subjects for generator
   React.useEffect(() => {
     if (schedules && schedules.length > 0) {
@@ -489,7 +500,12 @@ export default function ClasesPage() {
               <CardTitle className="text-lg font-headline">Navegación</CardTitle>
             </CardHeader>
             <CardContent className="flex justify-center p-2">
-              <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md" />
+              <Calendar 
+                mode="single" 
+                selected={date} 
+                onSelect={setDate} 
+                className="rounded-md w-full max-w-full" 
+              />
             </CardContent>
           </Card>
         </div>
@@ -497,7 +513,7 @@ export default function ClasesPage() {
         <div className="lg:col-span-3 space-y-6">
           <div className="flex items-center justify-between bg-white p-2 rounded-xl shadow-sm border overflow-hidden">
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-              {DAYS.map((day) => (
+              {[...DAYS, "Sábado", "Domingo"].map((day) => (
                 <Button key={day} variant={selectedDay === day ? "default" : "ghost"} onClick={() => setSelectedDay(day)} className="rounded-lg px-6 shrink-0">
                   {day}
                 </Button>
