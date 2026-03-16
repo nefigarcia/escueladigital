@@ -126,7 +126,6 @@ export default function ClasesPage() {
       const dayIndex = date.getDay(); // 0 is Sunday, 1 is Monday...
       const dayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
       const dayName = dayNames[dayIndex];
-      // Only set if it's a weekday, but let's allow setting it to show "No class" on weekends
       setSelectedDay(dayName);
     }
   }, [date]);
@@ -134,12 +133,13 @@ export default function ClasesPage() {
   // Sync unique subjects for generator
   React.useEffect(() => {
     if (schedules && schedules.length > 0) {
-      const unique = Array.from(new Set(schedules.map(s => s.subject))).map(sub => ({
+      const uniqueSubjects = Array.from(new Set(schedules.map(s => s.subject)));
+      const items = uniqueSubjects.map(sub => ({
         subject: sub,
         frequency: 1,
         checked: true
-      }))
-      setGenSubjects(unique)
+      }));
+      setGenSubjects(items);
     }
   }, [schedules])
 
@@ -500,12 +500,14 @@ export default function ClasesPage() {
               <CardTitle className="text-lg font-headline">Navegación</CardTitle>
             </CardHeader>
             <CardContent className="flex justify-center p-2">
-              <Calendar 
-                mode="single" 
-                selected={date} 
-                onSelect={setDate} 
-                className="rounded-md w-full max-w-full" 
-              />
+              <div className="w-full">
+                <Calendar 
+                  mode="single" 
+                  selected={date} 
+                  onSelect={setDate} 
+                  className="rounded-md border shadow-sm mx-auto" 
+                />
+              </div>
             </CardContent>
           </Card>
         </div>
