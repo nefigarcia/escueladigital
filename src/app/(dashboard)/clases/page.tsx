@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -16,7 +17,11 @@ import {
   BookOpen,
   CheckSquare,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles,
+  Wand2,
+  Info,
+  CheckCircle2
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -35,6 +40,7 @@ import { toast } from "@/hooks/use-toast"
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser, useDoc } from "@/firebase"
 import { collection, doc, serverTimestamp, setDoc, query, where } from "firebase/firestore"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Progress } from "@/components/ui/progress"
 
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
 
@@ -89,8 +95,15 @@ export default function ClasesPage() {
   const [selectedDay, setSelectedDay] = React.useState("Lunes")
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false)
   const [isAttendanceOpen, setIsAttendanceOpen] = React.useState(false)
+  const [isGeneratorOpen, setIsGeneratorOpen] = React.useState(false)
   const [selectedClass, setSelectedClass] = React.useState<any>(null)
   const [attendanceRecords, setAttendanceRecords] = React.useState<Record<string, boolean>>({})
+
+  // Generator State
+  const [genStep, setGenStep] = React.useState(1)
+  const [genSubjects, setGenSubjects] = React.useState<{subject: string, frequency: number, checked: boolean}[]>([])
+  const [genProgress, setGenProgress] = React.useState(0)
+  const [isGenerating, setIsGenerating] = React.useState(false)
 
   const [newClass, setNewClass] = React.useState({
     subject: "",
@@ -107,72 +120,65 @@ export default function ClasesPage() {
     }
   }, [mounted, date])
 
+  // Sync unique subjects for generator
+  React.useEffect(() => {
+    if (schedules && schedules.length > 0) {
+      const unique = Array.from(new Set(schedules.map(s => s.subject))).map(sub => ({
+        subject: sub,
+        frequency: 1,
+        checked: true
+      }))
+      setGenSubjects(unique)
+    }
+  }, [schedules])
+
   const timeToMinutes = (time: string) => {
+    if (!time) return 0;
     const [h, m] = time.split(':').map(Number);
     return h * 60 + m;
   };
 
-  const handleAddClass = async () => {
-    if (!newClass.subject || !newClass.teacher || !profile?.schoolId || !firestore) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Por favor completa los campos obligatorios."
-      })
-      return
-    }
+  const minutesToTime = (totalMinutes: number) => {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  };
 
-    const nStart = timeToMinutes(newClass.startTime)
-    const nEnd = timeToMinutes(newClass.endTime)
-
-    if (nEnd <= nStart) {
-      toast({
-        variant: "destructive",
-        title: "Error de Horario",
-        description: "La hora de fin debe ser posterior a la de inicio."
-      })
-      return
-    }
-
-    // Configuración de Receso dinámica desde la escuela
+  const checkConflict = (startTime: string, endTime: string, day: string, teacher: string, room: string, excludeId?: string) => {
+    const nStart = timeToMinutes(startTime)
+    const nEnd = timeToMinutes(endTime)
     const rStart = timeToMinutes(school?.recessStart || "10:30")
     const rEnd = timeToMinutes(school?.recessEnd || "11:00")
     
     const overlaps = (s1: number, e1: number, s2: number, e2: number) => s1 < e2 && e1 > s2;
 
-    if (overlaps(nStart, nEnd, rStart, rEnd)) {
-      toast({
-        variant: "destructive",
-        title: "Conflicto con Receso",
-        description: `El horario se traslapa con el receso institucional (${school?.recessStart || "10:30"} - ${school?.recessEnd || "11:00"}).`
-      })
-      return
-    }
+    // Check Recess
+    if (overlaps(nStart, nEnd, rStart, rEnd)) return "Receso Institucional"
 
-    // Validación contra clases existentes
-    const dailySchedules = (schedules || []).filter(s => s.dayOfWeek === newClass.dayOfWeek)
+    // Check against existing
+    const dailySchedules = (schedules || []).filter(s => s.dayOfWeek === day && s.id !== excludeId)
     for (const existing of dailySchedules) {
       const exStart = timeToMinutes(existing.startTime)
       const exEnd = timeToMinutes(existing.endTime)
 
       if (overlaps(nStart, nEnd, exStart, exEnd)) {
-        if (existing.teacher === newClass.teacher) {
-          toast({
-            variant: "destructive",
-            title: "Docente Ocupado",
-            description: `${existing.teacher} ya tiene una clase (${existing.subject}) en este horario.`
-          })
-          return
-        }
-        if (existing.room === newClass.room) {
-          toast({
-            variant: "destructive",
-            title: "Salón Ocupado",
-            description: `El salón ${existing.room} ya está siendo usado por la clase de ${existing.subject}.`
-          })
-          return
-        }
+        if (existing.teacher === teacher) return `Traslape de Docente (${existing.subject})`
+        if (existing.room === room) return `Traslape de Salón (${existing.room})`
       }
+    }
+    return null
+  }
+
+  const handleAddClass = async () => {
+    if (!newClass.subject || !newClass.teacher || !profile?.schoolId || !firestore) {
+      toast({ variant: "destructive", title: "Error", description: "Completa los campos obligatorios." })
+      return
+    }
+
+    const conflict = checkConflict(newClass.startTime, newClass.endTime, newClass.dayOfWeek, newClass.teacher, newClass.room)
+    if (conflict) {
+      toast({ variant: "destructive", title: "Conflicto", description: conflict })
+      return
     }
 
     addDocumentNonBlocking(collection(firestore, "schedules"), {
@@ -184,15 +190,86 @@ export default function ClasesPage() {
     })
 
     setIsAddDialogOpen(false)
-    setNewClass({
-      subject: "",
-      teacher: "",
-      room: "",
-      startTime: "08:00",
-      endTime: "09:30",
-      dayOfWeek: "Lunes",
+    setNewClass({ subject: "", teacher: "", room: "", startTime: "08:00", endTime: "09:30", dayOfWeek: "Lunes" })
+    toast({ title: "Clase programada" })
+  }
+
+  const handleSmartGenerate = async () => {
+    if (!firestore || !profile?.schoolId) return
+    setIsGenerating(true)
+    setGenProgress(0)
+
+    const selectedToGen = genSubjects.filter(s => s.checked)
+    if (selectedToGen.length === 0) {
+      toast({ variant: "destructive", title: "Error", description: "Selecciona al menos una materia." })
+      setIsGenerating(false)
+      return
+    }
+
+    const startHour = 8 * 60 // 8 AM
+    const endHour = 14 * 60 // 2 PM
+    const sessionDuration = 60 // 1 hour per session
+
+    let successes = 0
+    let failures = 0
+
+    // Temporary array to track new placements during generation to avoid local conflicts
+    const tempPlacements: any[] = []
+
+    for (let i = 0; i < selectedToGen.length; i++) {
+      const item = selectedToGen[i]
+      const reference = schedules?.find(s => s.subject === item.subject)
+      const teacher = reference?.teacher || "Docente Asignado"
+      const room = reference?.room || "Aula 1"
+
+      for (let f = 0; f < item.frequency; f++) {
+        let placed = false
+        // Try random slots
+        for (let attempt = 0; attempt < 100; attempt++) {
+          const randomDay = DAYS[Math.floor(Math.random() * DAYS.length)]
+          const randomStartMinutes = startHour + (Math.floor(Math.random() * ((endHour - startHour) / 15)) * 15)
+          const startT = minutesToTime(randomStartMinutes)
+          const endT = minutesToTime(randomStartMinutes + sessionDuration)
+
+          // Global check + Temp check
+          const globalConflict = checkConflict(startT, endT, randomDay, teacher, room)
+          const tempConflict = tempPlacements.some(tp => 
+            tp.day === randomDay && 
+            (timeToMinutes(startT) < timeToMinutes(tp.endTime) && timeToMinutes(endT) > timeToMinutes(tp.startTime)) &&
+            (tp.teacher === teacher || tp.room === room)
+          )
+
+          if (!globalConflict && !tempConflict) {
+            const payload = {
+              subject: item.subject,
+              teacher,
+              room,
+              startTime: startT,
+              endTime: endT,
+              dayOfWeek: randomDay,
+              schoolId: profile.schoolId,
+              color: "bg-primary/10 border-primary text-primary",
+              createdAt: serverTimestamp(),
+            }
+            addDocumentNonBlocking(collection(firestore, "schedules"), payload)
+            tempPlacements.push({ ...payload, id: Math.random().toString() })
+            successes++
+            placed = true
+            break
+          }
+        }
+        if (!placed) failures++
+      }
+      setGenProgress(Math.round(((i + 1) / selectedToGen.length) * 100))
+    }
+
+    setIsGenerating(false)
+    setIsGeneratorOpen(false)
+    setGenStep(1)
+    toast({
+      title: "Generación Finalizada",
+      description: `Se crearon ${successes} sesiones. ${failures > 0 ? `No se pudo encontrar espacio para ${failures} sesiones por conflictos de horario.` : ''}`
     })
-    toast({ title: "Clase programada exitosamente" })
   }
 
   const handleDeleteClass = (id: string) => {
@@ -211,10 +288,8 @@ export default function ClasesPage() {
 
   const handleSaveAttendance = () => {
     if (!firestore || !selectedClass || !profile?.schoolId) return
-
     const attendanceId = `${selectedClass.id}_${new Date().toISOString().split('T')[0]}`
     const attendanceDocRef = doc(firestore, "attendance", attendanceId)
-
     const records = Object.entries(attendanceRecords).map(([studentId, isPresent]) => ({
       studentId,
       status: isPresent ? "presente" : "ausente"
@@ -230,10 +305,7 @@ export default function ClasesPage() {
     }, { merge: true })
 
     setIsAttendanceOpen(false)
-    toast({
-      title: "Asistencia Guardada",
-      description: "La lista de hoy ha sido registrada exitosamente."
-    })
+    toast({ title: "Asistencia Guardada" })
   }
 
   const dailySchedules = (schedules || []).filter(s => s.dayOfWeek === selectedDay)
@@ -249,97 +321,184 @@ export default function ClasesPage() {
         </div>
         
         {profile?.role !== "Alumno" && (
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" /> Nueva Clase
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Programar Nueva Sesión</DialogTitle>
-                <DialogDescription>
-                  Se validará automáticamente si hay conflictos de salón o docente.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label>Nombre de la Materia</Label>
-                  <Input placeholder="Ej. Física Moderna" value={newClass.subject} onChange={(e) => setNewClass({...newClass, subject: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Docente</Label>
-                  <Select value={newClass.teacher} onValueChange={(v) => setNewClass({...newClass, teacher: v})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar docente..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teachers.length > 0 ? (
-                        teachers.map((teacher) => (
-                          <SelectItem key={teacher.uid} value={`${teacher.firstName} ${teacher.lastName}`}>
-                            {teacher.firstName} {teacher.lastName} ({teacher.role})
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="none" disabled>No hay personal registrado</SelectItem>
+          <div className="flex gap-2">
+            <Dialog open={isGeneratorOpen} onOpenChange={setIsGeneratorOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2 border-primary text-primary hover:bg-primary/5">
+                  <Sparkles className="h-4 w-4" /> Generador Inteligente
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Wand2 className="h-5 w-5 text-primary" /> Asistente de Carga Horaria
+                  </DialogTitle>
+                  <DialogDescription>
+                    Distribuye materias automáticamente evitando traslapes y respetando el receso.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {genStep === 1 ? (
+                  <div className="space-y-4 py-4">
+                    <div className="bg-muted/30 p-4 rounded-lg flex gap-3 items-start">
+                      <Info className="h-5 w-5 text-primary mt-0.5" />
+                      <p className="text-xs leading-relaxed">
+                        Selecciona las materias que deseas programar. El sistema usará el <b>Docente y Salón</b> de la última clase registrada para cada materia como referencia.
+                      </p>
+                    </div>
+                    <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+                      {genSubjects.length > 0 ? genSubjects.map((item, idx) => (
+                        <div key={item.subject} className="flex items-center justify-between p-3 border rounded-xl hover:bg-muted/20 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <Checkbox 
+                              id={`gen-${idx}`} 
+                              checked={item.checked} 
+                              onCheckedChange={(c) => {
+                                const next = [...genSubjects]
+                                next[idx].checked = !!c
+                                setGenSubjects(next)
+                              }}
+                            />
+                            <Label htmlFor={`gen-${idx}`} className="font-bold">{item.subject}</Label>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Label className="text-[10px] uppercase opacity-60">Veces x Semana</Label>
+                            <Input 
+                              type="number" 
+                              className="w-16 h-8 text-center" 
+                              min={1} max={5}
+                              value={item.frequency}
+                              onChange={(e) => {
+                                const next = [...genSubjects]
+                                next[idx].frequency = parseInt(e.target.value) || 1
+                                setGenSubjects(next)
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )) : (
+                        <p className="text-center py-10 text-muted-foreground italic">Registra al menos una clase manualmente para tener referencias.</p>
                       )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-10 text-center space-y-6">
+                    <div className="flex justify-center">
+                      <div className="h-20 w-20 bg-primary/10 rounded-full flex items-center justify-center animate-pulse">
+                        <Sparkles className="h-10 w-10 text-primary" />
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold">Generando Horario...</h3>
+                      <p className="text-muted-foreground text-sm">Validando docentes, aulas y recesos.</p>
+                    </div>
+                    <div className="px-10">
+                      <Progress value={genProgress} className="h-2" />
+                      <p className="text-[10px] mt-2 text-primary font-bold uppercase tracking-widest">{genProgress}% Completado</p>
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter className="gap-2 sm:gap-0">
+                  {genStep === 1 ? (
+                    <>
+                      <Button variant="ghost" onClick={() => setIsGeneratorOpen(false)}>Cancelar</Button>
+                      <Button onClick={() => setGenStep(2)} disabled={genSubjects.length === 0}>Siguiente Paso</Button>
+                    </>
+                  ) : (
+                    <Button onClick={handleSmartGenerate} disabled={isGenerating} className="w-full h-11 text-lg">
+                      {isGenerating ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <CheckCircle2 className="h-5 w-5 mr-2" />}
+                      Iniciar Generación
+                    </Button>
+                  )}
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <Plus className="h-4 w-4" /> Nueva Clase
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Programar Nueva Sesión</DialogTitle>
+                  <DialogDescription>Se validará automáticamente si hay conflictos.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
                   <div className="space-y-2">
-                    <Label>Salón</Label>
-                    <Input placeholder="Aula 301" value={newClass.room} onChange={(e) => setNewClass({...newClass, room: e.target.value})} />
+                    <Label>Nombre de la Materia</Label>
+                    <Input placeholder="Ej. Física Moderna" value={newClass.subject} onChange={(e) => setNewClass({...newClass, subject: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Día</Label>
-                    <Select value={newClass.dayOfWeek} onValueChange={(v) => setNewClass({...newClass, dayOfWeek: v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{DAYS.map(day => <SelectItem key={day} value={day}>{day}</SelectItem>)}</SelectContent>
+                    <Label>Docente</Label>
+                    <Select value={newClass.teacher} onValueChange={(v) => setNewClass({...newClass, teacher: v})}>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar docente..." /></SelectTrigger>
+                      <SelectContent>
+                        {teachers.map((t) => (
+                          <SelectItem key={t.uid} value={`${t.firstName} ${t.lastName}`}>{t.firstName} {t.lastName}</SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Inicio</Label>
-                    <Input type="time" value={newClass.startTime} onChange={(e) => setNewClass({...newClass, startTime: e.target.value})} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Salón</Label>
+                      <Input placeholder="Aula 301" value={newClass.room} onChange={(e) => setNewClass({...newClass, room: e.target.value})} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Día</Label>
+                      <Select value={newClass.dayOfWeek} onValueChange={(v) => setNewClass({...newClass, dayOfWeek: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>{DAYS.map(day => <SelectItem key={day} value={day}>{day}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Fin</Label>
-                    <Input type="time" value={newClass.endTime} onChange={(e) => setNewClass({...newClass, endTime: e.target.value})} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Inicio</Label>
+                      <Input type="time" value={newClass.startTime} onChange={(e) => setNewClass({...newClass, startTime: e.target.value})} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Fin</Label>
+                      <Input type="time" value={newClass.endTime} onChange={(e) => setNewClass({...newClass, endTime: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-700 italic">
+                      Recuerda que no se pueden programar clases durante el receso de <b>{school?.recessStart || "10:30"} a {school?.recessEnd || "11:00"}</b>.
+                    </p>
                   </div>
                 </div>
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700 italic">
-                    Recuerda que no se pueden programar clases durante el receso institucional de <b>{school?.recessStart || "10:30"} a {school?.recessEnd || "11:00"}</b>.
-                  </p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
-                <Button onClick={handleAddClass}>Guardar Horario</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleAddClass}>Guardar Horario</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="space-y-6 lg:col-span-1">
-          <Card className="border-none shadow-sm h-fit">
-            <CardHeader className="pb-3"><CardTitle className="text-lg font-headline">Navegación</CardTitle></CardHeader>
-            <CardContent className="flex justify-center p-0 pb-4">
-              <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border-none" />
+          <Card className="border-none shadow-sm h-fit overflow-hidden">
+            <CardHeader className="pb-3 bg-primary/5">
+              <CardTitle className="text-lg font-headline">Navegación</CardTitle>
+            </CardHeader>
+            <CardContent className="flex justify-center p-2">
+              <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md" />
             </CardContent>
           </Card>
         </div>
 
         <div className="lg:col-span-3 space-y-6">
-          <div className="flex items-center justify-between bg-white p-2 rounded-xl shadow-sm border">
+          <div className="flex items-center justify-between bg-white p-2 rounded-xl shadow-sm border overflow-hidden">
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
               {DAYS.map((day) => (
-                <Button key={day} variant={selectedDay === day ? "default" : "ghost"} onClick={() => setSelectedDay(day)} className="rounded-lg px-6">
+                <Button key={day} variant={selectedDay === day ? "default" : "ghost"} onClick={() => setSelectedDay(day)} className="rounded-lg px-6 shrink-0">
                   {day}
                 </Button>
               ))}
@@ -360,8 +519,8 @@ export default function ClasesPage() {
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
                 ) : dailySchedules.length > 0 ? (
-                  dailySchedules.map((item) => (
-                    <div key={item.id} className="group p-6 flex flex-col md:flex-row md:items-center gap-6 hover:bg-muted/30">
+                  dailySchedules.sort((a,b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)).map((item) => (
+                    <div key={item.id} className="group p-6 flex flex-col md:flex-row md:items-center gap-6 hover:bg-muted/30 transition-colors">
                       <div className="flex flex-row md:flex-col items-center gap-2 md:w-24 shrink-0 font-bold text-lg text-primary">
                         <span>{item.startTime}</span>
                         <div className="h-px w-4 bg-muted-foreground/30 hidden md:block" />
@@ -381,15 +540,18 @@ export default function ClasesPage() {
                           <Button size="sm" variant="secondary" className="gap-2" onClick={() => handleOpenAttendance(item)}>
                             <CheckSquare className="h-4 w-4" /> Asistencia
                           </Button>
-                          <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleDeleteClass(item.id)}>Eliminar</Button>
+                          <Button size="sm" variant="outline" className="text-destructive border-none hover:bg-destructive/10" onClick={() => handleDeleteClass(item.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       )}
                     </div>
                   ))
                 ) : (
                   <div className="flex flex-col items-center justify-center py-32 opacity-50">
-                    <CalendarDays className="h-16 w-16 mb-4" />
-                    <p>No hay actividades programadas</p>
+                    <CalendarDays className="h-16 w-16 mb-4 text-muted-foreground" />
+                    <p className="font-medium">No hay actividades para el {selectedDay}</p>
+                    <p className="text-sm">Usa el Generador Inteligente para llenar la agenda.</p>
                   </div>
                 )}
               </div>
