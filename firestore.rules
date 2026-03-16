@@ -19,13 +19,15 @@ service cloud.firestore {
     }
 
     function isOperationalStaff() {
-      let roleData = getStaffRoleData();
-      return isSignedIn() && (roleData.role == 'Administrador' || roleData.role == 'Academico');
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/staff_roles/$(request.auth.uid)) &&
+        (getStaffRoleData().role == 'Administrador' || getStaffRoleData().role == 'Academico');
     }
 
     function isAdmin() {
-      let roleData = getStaffRoleData();
-      return isSignedIn() && roleData.role == 'Administrador';
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/staff_roles/$(request.auth.uid)) &&
+        getStaffRoleData().role == 'Administrador';
     }
 
     function isOwner(userId) {
@@ -35,7 +37,6 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /schools/{schoolId} {
-      // Allow public read to verify activation codes during registration
       allow read: if true;
       allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && isAdmin() && resource.data.directorId == request.auth.uid;
@@ -52,60 +53,55 @@ service cloud.firestore {
     match /students/{studentId} {
       allow read: if isSignedIn() && (
         let roleData = getStaffRoleData();
-        (roleData.role == 'Administrador' || roleData.role == 'Academico') && resource.data.schoolId == roleData.schoolId ||
-        (roleData.role == 'Alumno' && resource.data.schoolId == roleData.schoolId && resource.data.studentIdNumber == roleData.studentIdNumber)
+        ((roleData.role == 'Administrador' || roleData.role == 'Academico') && resource.data.schoolId == roleData.schoolId) ||
+        (roleData.role == 'Alumno' && resource.data.studentIdNumber == roleData.studentIdNumber && resource.data.schoolId == roleData.schoolId)
       );
       
-      allow create: if isSignedIn() && isOperationalStaff() && request.resource.data.schoolId == getStaffRoleData().schoolId;
-      allow update: if isSignedIn() && isOperationalStaff() && resource.data.schoolId == getStaffRoleData().schoolId;
-      allow delete: if isSignedIn() && isAdmin() && resource.data.schoolId == getStaffRoleData().schoolId;
+      allow create: if isSignedIn() && isOperationalStaff();
+      allow update: if isSignedIn() && isOperationalStaff();
+      allow delete: if isSignedIn() && isAdmin();
       
       match /payments/{paymentId} {
-        allow read: if isSignedIn() && get(/databases/$(database)/documents/students/$(studentId)).data.schoolId == getStaffRoleData().schoolId;
-        allow create, update, delete: if isSignedIn() && isOperationalStaff() && get(/databases/$(database)/documents/students/$(studentId)).data.schoolId == getStaffRoleData().schoolId;
+        allow read: if isSignedIn() && getStaffRoleData().schoolId == get(/databases/$(database)/documents/students/$(studentId)).data.schoolId;
+        allow create, update, delete: if isSignedIn() && isOperationalStaff();
       }
     }
 
     match /fee_types/{id} {
       allow read: if isSignedIn() && resource.data.schoolId == getStaffRoleData().schoolId;
-      allow create: if isSignedIn() && isAdmin() && request.resource.data.schoolId == getStaffRoleData().schoolId;
-      allow update, delete: if isSignedIn() && isAdmin() && resource.data.schoolId == getStaffRoleData().schoolId;
+      allow create, update, delete: if isSignedIn() && isAdmin();
     }
     
     match /schedules/{id} {
       allow read: if isSignedIn() && resource.data.schoolId == getStaffRoleData().schoolId;
-      allow create: if isSignedIn() && isOperationalStaff() && request.resource.data.schoolId == getStaffRoleData().schoolId;
-      allow update, delete: if isSignedIn() && isOperationalStaff() && resource.data.schoolId == getStaffRoleData().schoolId;
+      allow create, update, delete: if isSignedIn() && isOperationalStaff();
     }
 
     match /psychology_reports/{reportId} {
       allow read: if isSignedIn() && (
         let roleData = getStaffRoleData();
-        (roleData.role == 'Administrador' || roleData.role == 'Academico') && resource.data.schoolId == roleData.schoolId
+        (roleData.role == 'Administrador' || roleData.role == 'Academico') && 
+        (resource == null || resource.data.schoolId == roleData.schoolId)
       );
-      allow create: if isSignedIn() && isOperationalStaff() && request.resource.data.schoolId == getStaffRoleData().schoolId;
-      allow update: if isSignedIn() && (
-        let roleData = getStaffRoleData();
-        (roleData.role == 'Administrador' || (roleData.role == 'Academico' && resource.data.authorId == request.auth.uid)) && 
-        resource.data.schoolId == roleData.schoolId
-      );
-      allow delete: if isSignedIn() && isAdmin() && resource.data.schoolId == getStaffRoleData().schoolId;
+      allow create: if isSignedIn() && isOperationalStaff();
+      allow update: if isSignedIn() && isOperationalStaff();
+      allow delete: if isSignedIn() && isAdmin();
     }
 
     match /attendance/{id} {
       allow read: if isSignedIn() && resource.data.schoolId == getStaffRoleData().schoolId;
-      allow create, update: if isSignedIn() && isOperationalStaff() && request.resource.data.schoolId == getStaffRoleData().schoolId;
-      allow delete: if isSignedIn() && isAdmin() && resource.data.schoolId == getStaffRoleData().schoolId;
+      allow create, update: if isSignedIn() && isOperationalStaff();
+      allow delete: if isSignedIn() && isAdmin();
     }
 
     match /grades/{id} {
       allow read: if isSignedIn() && (
         let roleData = getStaffRoleData();
-        (roleData.role == 'Administrador' || roleData.role == 'Academico') && resource.data.schoolId == roleData.schoolId ||
-        (roleData.role == 'Alumno' && resource.data.schoolId == roleData.schoolId && resource.data.studentIdNumber == roleData.studentIdNumber)
+        ((roleData.role == 'Administrador' || roleData.role == 'Academico') && resource.data.schoolId == roleData.schoolId) ||
+        (roleData.role == 'Alumno' && resource.data.studentIdNumber == roleData.studentIdNumber && resource.data.schoolId == roleData.schoolId)
       );
-      allow create, update: if isSignedIn() && isOperationalStaff() && request.resource.data.schoolId == getStaffRoleData().schoolId;
-      allow delete: if isSignedIn() && isAdmin() && resource.data.schoolId == getStaffRoleData().schoolId;
+      allow create, update: if isSignedIn() && isOperationalStaff();
+      allow delete: if isSignedIn() && isAdmin();
     }
   }
 }
