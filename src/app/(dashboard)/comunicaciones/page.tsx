@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -7,12 +8,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Sparkles, Send, Copy, RotateCcw, MessageSquarePlus } from "lucide-react"
+import { Sparkles, Send, Copy, RotateCcw, MessageSquarePlus, Loader2 } from "lucide-react"
 import { smartParentCommunicationsDrafting } from "@/ai/flows/smart-parent-communications-drafting"
 import { toast } from "@/hooks/use-toast"
-import { MOCK_STUDENTS } from "@/lib/mock-data"
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from "@/firebase"
+import { collection, query, where, doc } from "firebase/firestore"
 
 export default function ComunicacionesPage() {
+  const { firestore } = useFirestore()
+  const { user } = useUser()
   const [loading, setLoading] = React.useState(false)
   const [draft, setDraft] = React.useState("")
   const [template, setTemplate] = React.useState<"recordatorioDePago" | "avisoDeEvento" | "avisoGeneral">("avisoGeneral")
@@ -26,31 +30,49 @@ export default function ComunicacionesPage() {
     eventLocation: "",
   })
 
+  // Fetch Real Students
+  const profileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null
+    return doc(firestore, "staff_roles", user.uid)
+  }, [firestore, user])
+  const { data: profile } = useDoc(profileRef)
+
+  const studentsQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.schoolId) return null
+    return query(collection(firestore, "students"), where("schoolId", "==", profile.schoolId))
+  }, [firestore, profile])
+  const { data: students, isLoading: isLoadingStudents } = useCollection(studentsQuery)
+
   const handleGenerate = async () => {
+    if (!formData.studentId) {
+      toast({ variant: "destructive", title: "Selecciona un estudiante" })
+      return
+    }
+
     setLoading(true)
     try {
-      const student = MOCK_STUDENTS.find(s => s.idNumber === formData.studentId)
+      const student = students?.find(s => s.id === formData.studentId)
       
       const result = await smartParentCommunicationsDrafting({
         templateName: template,
         contextData: {
-          studentId: student?.idNumber,
-          studentName: student?.name,
+          studentId: student?.studentIdNumber,
+          studentName: `${student?.firstName} ${student?.lastName}`,
           guardianName: student?.guardianName,
-          outstandingBalance: student?.outstandingBalance,
+          outstandingBalance: student?.outstandingBalance || 0,
           additionalDetails: formData.additionalDetails,
           eventName: formData.eventName,
           eventDate: formData.eventDate,
           eventTime: formData.eventTime,
           eventLocation: formData.eventLocation,
-          dueDate: "2024-02-01",
+          dueDate: new Date().toISOString().split('T')[0],
         }
       })
       
       setDraft(result.draftMessage)
       toast({
         title: "Borrador Generado",
-        description: "La IA ha creado un mensaje basado en tus criterios.",
+        description: "La IA ha creado un mensaje basado en datos reales del alumno.",
       })
     } catch (error) {
       toast({
@@ -76,7 +98,7 @@ export default function ComunicacionesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-headline font-bold text-primary">Asistente de Comunicación IA</h2>
-          <p className="text-muted-foreground">Redacta avisos profesionales para padres en segundos.</p>
+          <p className="text-muted-foreground">Redacta avisos profesionales para padres utilizando la base de datos real.</p>
         </div>
       </div>
 
@@ -104,13 +126,18 @@ export default function ComunicacionesPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>ID del Estudiante (Opcional)</Label>
-              <Input 
-                placeholder="2024XXX" 
-                value={formData.studentId}
-                onChange={(e) => setFormData({...formData, studentId: e.target.value})}
-              />
-              <p className="text-[10px] text-muted-foreground">La IA buscará los datos del alumno y tutor si proporcionas el ID.</p>
+              <Label>Estudiante</Label>
+              <Select value={formData.studentId} onValueChange={(v) => setFormData({...formData, studentId: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder={isLoadingStudents ? "Cargando alumnos..." : "Seleccionar alumno..."} />
+                </SelectTrigger>
+                <SelectContent>
+                  {students?.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.firstName} {s.lastName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">La IA redactará el mensaje personalizado para este alumno y su tutor.</p>
             </div>
 
             {template === "avisoDeEvento" && (
@@ -147,7 +174,7 @@ export default function ComunicacionesPage() {
           </CardContent>
           <CardFooter>
             <Button className="w-full gap-2" onClick={handleGenerate} disabled={loading}>
-              {loading ? "Generando..." : <><Sparkles className="h-4 w-4" /> Redactar con IA</>}
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Sparkles className="h-4 w-4" /> Redactar con IA</>}
             </Button>
           </CardFooter>
         </Card>

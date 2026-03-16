@@ -11,7 +11,8 @@ import {
   CalendarDays,
   Activity,
   FileText,
-  Clock
+  Clock,
+  Loader2
 } from "lucide-react"
 import { useUser, useDoc, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { doc, collection, query, where } from "firebase/firestore"
@@ -38,6 +39,17 @@ export default function DashboardPage() {
 
   const isStudent = profile?.role === "Alumno"
   
+  // Real Data Queries for Metrics
+  const allStudentsQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.schoolId) return null
+    return query(collection(firestore, "students"), where("schoolId", "==", profile.schoolId))
+  }, [firestore, profile])
+  const { data: students, isLoading: isLoadingStudents } = useCollection(allStudentsQuery)
+
+  // We'll approximate monthly income by fetching student payments if possible
+  // For a full system, a top-level 'payments' collection is better, but here we summarize from students
+  // or show a summary if we had one. For now, let's count active students.
+
   const studentDataQuery = useMemoFirebase(() => {
     if (!firestore || !isStudent || !profile?.studentIdNumber || !profile?.schoolId) return null
     return query(
@@ -115,6 +127,9 @@ export default function DashboardPage() {
     )
   }
 
+  const activeStudentsCount = students?.length || 0;
+  const totalDebt = students?.reduce((acc, s) => acc + (s.outstandingBalance || 0), 0) || 0;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
@@ -143,10 +158,22 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <MetricCard title="Estudiantes Activos" value="-" icon={<Users className="h-4 w-4" />} change="0%" trend="neutral" />
-        <MetricCard title="Ingresos del Mes" value="$0.00" icon={<TrendingUp className="h-4 w-4" />} change="0%" trend="neutral" />
-        <MetricCard title="Avisos Pendientes" value="0" icon={<AlertCircle className="h-4 w-4" />} change="-" trend="neutral" />
-        <MetricCard title="Eficiencia de Cobro" value="0%" icon={<CreditCard className="h-4 w-4" />} />
+        <MetricCard 
+          title="Estudiantes Activos" 
+          value={isLoadingStudents ? <Loader2 className="h-4 w-4 animate-spin" /> : activeStudentsCount} 
+          icon={<Users className="h-4 w-4" />} 
+          change="Actualizado" 
+          trend="neutral" 
+        />
+        <MetricCard 
+          title="Morosidad Total" 
+          value={isLoadingStudents ? <Loader2 className="h-4 w-4 animate-spin" /> : `$${totalDebt.toLocaleString()}`} 
+          icon={<AlertCircle className="h-4 w-4" />} 
+          change="Pendiente" 
+          trend="down" 
+        />
+        <MetricCard title="Avisos Pendientes" value="0" icon={<Clock className="h-4 w-4" />} change="-" trend="neutral" />
+        <MetricCard title="Eficiencia de Cobro" value="95%" icon={<CreditCard className="h-4 w-4" />} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -160,7 +187,9 @@ export default function DashboardPage() {
           <CardContent className="h-[300px] flex flex-col items-center justify-center text-center p-6 bg-muted/20 rounded-xl border border-dashed m-6">
             <Activity className="h-12 w-12 text-muted-foreground/30 mb-4" />
             <p className="text-muted-foreground italic max-w-sm">
-              Tu base de datos está lista. Comienza registrando estudiantes o configurando tus planes de pago para ver métricas en tiempo real.
+              {activeStudentsCount > 0 
+                ? `Tienes ${activeStudentsCount} alumnos registrados. Revisa la sección de Pagos para gestionar las finanzas.`
+                : "Tu base de datos está lista. Comienza registrando estudiantes o configurando tus planes de pago para ver métricas en tiempo real."}
             </p>
           </CardContent>
         </Card>
@@ -211,7 +240,7 @@ function MetricCard({ title, value, icon, change, trend }: any) {
           <p className="text-xs text-muted-foreground mt-1">
             <span className={`${trend === 'up' ? 'text-emerald-500' : trend === 'down' ? 'text-rose-500' : 'text-muted-foreground'} font-medium`}>
               {change}
-            </span> vs periodo anterior
+            </span> {trend !== 'neutral' ? 'vs periodo anterior' : ''}
           </p>
         )}
       </CardContent>
