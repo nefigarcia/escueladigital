@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -21,7 +20,8 @@ import {
   Sparkles,
   Wand2,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  Trash2
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
