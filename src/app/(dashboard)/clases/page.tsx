@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -328,10 +327,10 @@ export default function ClasesPage() {
 
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="space-y-6 lg:col-span-1">
-          <Card className="border-none shadow-sm">
+          <Card className="border-none shadow-sm h-fit">
             <CardHeader className="pb-3"><CardTitle className="text-lg font-headline">Navegación</CardTitle></CardHeader>
-            <CardContent>
-              <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border shadow-none p-0" />
+            <CardContent className="flex justify-center p-0 pb-4">
+              <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border-none" />
             </CardContent>
           </Card>
         </div>
