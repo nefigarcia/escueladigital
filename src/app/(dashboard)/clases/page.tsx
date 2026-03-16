@@ -15,7 +15,8 @@ import {
   ChevronRight,
   Search,
   BookOpen,
-  CheckSquare
+  CheckSquare,
+  Loader2
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -51,6 +52,21 @@ export default function ClasesPage() {
     return doc(firestore, "staff_roles", user.uid)
   }, [firestore, user])
   const { data: profile } = useDoc(profileRef)
+
+  // Fetch staff members to populate Teacher select
+  const staffQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.schoolId) return null
+    return query(
+      collection(firestore, "staff_roles"),
+      where("schoolId", "==", profile.schoolId)
+    )
+  }, [firestore, profile])
+  const { data: staffList } = useCollection(staffQuery)
+  
+  // Filter only staff (Admins and Academicos)
+  const teachers = React.useMemo(() => {
+    return (staffList || []).filter(s => s.role === "Administrador" || s.role === "Academico")
+  }, [staffList])
 
   const schedulesRef = useMemoFirebase(() => {
     if (!firestore || !profile?.schoolId) return null;
@@ -88,7 +104,14 @@ export default function ClasesPage() {
   }, [mounted, date])
 
   const handleAddClass = async () => {
-    if (!newClass.subject || !newClass.teacher || !profile?.schoolId || !firestore) return
+    if (!newClass.subject || !newClass.teacher || !profile?.schoolId || !firestore) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Por favor completa los campos de Materia y Docente."
+      })
+      return
+    }
 
     addDocumentNonBlocking(collection(firestore, "schedules"), {
       ...newClass,
@@ -181,7 +204,23 @@ export default function ClasesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Docente</Label>
-                  <Input placeholder="Ej. Dr. Mario Moreno" value={newClass.teacher} onChange={(e) => setNewClass({...newClass, teacher: e.target.value})} />
+                  <Select value={newClass.teacher} onValueChange={(v) => setNewClass({...newClass, teacher: v})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar docente..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teachers.length > 0 ? (
+                        teachers.map((teacher) => (
+                          <SelectItem key={teacher.uid} value={`${teacher.firstName} ${teacher.lastName}`}>
+                            {teacher.firstName} {teacher.lastName} ({teacher.role})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="none" disabled>No hay personal registrado</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground italic">Solo aparece el personal registrado en la sección "Personal".</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -247,7 +286,9 @@ export default function ClasesPage() {
             <CardContent className="p-0">
               <div className="divide-y">
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-20">Cargando...</div>
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
                 ) : dailySchedules.length > 0 ? (
                   dailySchedules.map((item) => (
                     <div key={item.id} className="group p-6 flex flex-col md:flex-row md:items-center gap-6 hover:bg-muted/30">
