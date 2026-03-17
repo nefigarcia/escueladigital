@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -83,7 +82,6 @@ export default function PagosPage() {
   }, [firestore, profile])
   const { data: school } = useDoc(schoolRef)
   
-  // Only fetch students if the user is NOT a student (Admins/Academicos)
   const studentsQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.schoolId || isStudent) return null
     return query(collection(firestore, "students"), where("schoolId", "==", profile.schoolId))
@@ -96,7 +94,6 @@ export default function PagosPage() {
   }, [firestore, profile])
   const { data: fees } = useCollection(feeTypesQuery)
 
-  // Real-time Selected Student Document
   const selectedStudentRef = useMemoFirebase(() => {
     if (!firestore || !activeStudentId) return null
     return doc(firestore, "students", activeStudentId)
@@ -112,7 +109,6 @@ export default function PagosPage() {
     { id: Math.random().toString(36).substr(2, 9), type: 'fee', name: '', amount: 0, month: MONTHS[new Date().getMonth()] }
   ])
 
-  // Handle initialStudentId from URL or auto-load student profile
   React.useEffect(() => {
     if (!mounted) return;
 
@@ -286,67 +282,126 @@ export default function PagosPage() {
 
   return (
     <div className="space-y-6">
-      {/* PDF Hidden Template */}
+      {/* PDF Hidden Template Restaurado */}
       <div className="fixed -left-[4000px] top-0">
-        <div ref={pdfTemplateRef} className="w-[210mm] p-[15mm] bg-white text-black font-serif min-h-[297mm]">
+        <div ref={pdfTemplateRef} className="w-[210mm] p-[15mm] bg-white text-black font-serif min-h-[297mm] relative overflow-hidden">
           {pdfData && (
-            <div className="relative">
-              <div className="flex justify-between items-start mb-2">
+            <>
+              {/* Marca de agua PAGADO */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.08] select-none">
+                <div className="text-[140px] font-black text-rose-600 border-[16px] border-rose-600 px-10 py-4 -rotate-[35deg] tracking-widest uppercase">
+                  PAGADO
+                </div>
+              </div>
+
+              {/* Header Principal */}
+              <div className="flex justify-between items-start mb-10 relative z-10">
                 <div className="w-1/3">
-                  {pdfData.school.logoUrl && (
-                    <img src={pdfData.school.logoUrl} className="h-24 w-auto object-contain" alt="Logo" />
+                  {pdfData.school.logoUrl ? (
+                    <img src={pdfData.school.logoUrl} className="h-28 w-auto object-contain" alt="Logo" />
+                  ) : (
+                    <div className="h-20 w-20 bg-muted flex items-center justify-center rounded">LOGO</div>
                   )}
                 </div>
                 <div className="w-2/3 text-right">
-                  <h1 className="text-[36pt] font-bold leading-none mb-4">{pdfData.school.name}</h1>
+                  <h1 className="text-[32pt] font-headline font-bold leading-tight mb-2 text-primary">{pdfData.school.name}</h1>
+                  <p className="font-bold text-lg">CCT: {pdfData.school.cct}</p>
+                  <p className="text-sm italic opacity-80">{pdfData.school.address}</p>
                 </div>
               </div>
-              <div className="text-right mb-4">
-                <p className="font-bold text-lg">CCT: {pdfData.school.cct}</p>
-                <p className="text-sm italic">{pdfData.school.address}</p>
-              </div>
-              <div className="h-1 bg-black w-full mb-6" />
-              <div className="flex justify-between items-end mb-6">
+
+              <div className="h-[2px] bg-black/80 w-full mb-8" />
+
+              {/* Folio y Fecha */}
+              <div className="flex justify-between items-start mb-8 relative z-10">
                 <div>
-                  <h2 className="text-sm font-bold uppercase tracking-widest">Recibo de Pago</h2>
-                  <p className="text-xs text-muted-foreground">Folio: {pdfData.payment.id.toUpperCase()}</p>
+                  <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-1">Recibo de Pago</h2>
+                  <p className="text-xs font-mono">Folio: {pdfData.payment.id.toUpperCase()}</p>
                 </div>
                 <div className="text-right">
-                  <h2 className="text-sm font-bold uppercase tracking-widest">Fecha</h2>
-                  <p className="text-sm">{pdfData.dateFormatted}</p>
+                  <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-1">Fecha</h2>
+                  <p className="text-base font-bold">{pdfData.dateFormatted}</p>
                 </div>
               </div>
-              <div className="space-y-4 mb-8">
-                <div className="border-b border-black/10 py-3 flex items-baseline">
+
+              {/* Datos del Alumno Grid */}
+              <div className="grid grid-cols-1 gap-y-4 mb-10 relative z-10 border-y border-black/5 py-6">
+                <div className="flex items-baseline border-b border-black/5 pb-2">
                   <span className="text-sm font-bold uppercase w-32 shrink-0">Recibí de:</span>
-                  <span className="text-base italic ml-4">{pdfData.payment.receivedFrom}</span>
+                  <span className="text-lg italic ml-4 flex-1">{pdfData.payment.receivedFrom}</span>
                 </div>
-                <div className="border-b border-black/10 py-3 flex items-baseline">
+                <div className="flex items-baseline border-b border-black/5 pb-2">
                   <span className="text-sm font-bold uppercase w-32 shrink-0">Alumno:</span>
-                  <span className="text-base italic ml-4">{pdfData.payment.studentName}</span>
+                  <span className="text-lg italic ml-4 flex-1">{pdfData.payment.studentName}</span>
                 </div>
-                <div className="border-b border-black/10 py-4 flex flex-col">
-                  <span className="text-sm font-bold uppercase mb-2">Desglose de Conceptos:</span>
-                  <div className="space-y-1 ml-4 pr-4">
-                    {(pdfData.payment.items || []).map((item: any, idx: number) => (
-                      <div key={idx} className="flex justify-between items-baseline italic border-b border-dashed border-black/5 pb-1">
-                        <span className="text-base">{item.name} {item.month ? `(${item.month})` : ''}</span>
-                        <span className="text-base font-bold">${(item.amount || 0).toLocaleString()}</span>
-                      </div>
-                    ))}
+                <div className="grid grid-cols-2 gap-x-8">
+                  <div className="flex items-baseline border-b border-black/5 pb-2">
+                    <span className="text-sm font-bold uppercase w-32 shrink-0">Matrícula:</span>
+                    <span className="text-lg italic ml-4">{pdfData.student?.studentIdNumber}</span>
+                  </div>
+                  <div className="flex items-baseline border-b border-black/5 pb-2">
+                    <span className="text-sm font-bold uppercase w-24 shrink-0">Grado:</span>
+                    <span className="text-lg italic ml-4">{pdfData.student?.gradeLevel}</span>
                   </div>
                 </div>
-              </div>
-              <div className="bg-slate-50 p-8 rounded-xl border border-black/10 mb-12">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-xl font-bold uppercase">Total Pagado:</span>
-                  <span className="text-3xl font-black">${(pdfData.payment.totalAmount || 0).toLocaleString()} MXN</span>
+                <div className="grid grid-cols-2 gap-x-8">
+                  <div className="flex items-baseline border-b border-black/5 pb-2">
+                    <span className="text-sm font-bold uppercase w-32 shrink-0">Teléfono:</span>
+                    <span className="text-lg italic ml-4">{pdfData.student?.phone}</span>
+                  </div>
+                  <div className="flex items-baseline border-b border-black/5 pb-2">
+                    <span className="text-sm font-bold uppercase w-24 shrink-0">Método:</span>
+                    <span className="text-lg italic ml-4">{pdfData.payment.paymentMethod}</span>
+                  </div>
                 </div>
-                <div className="text-center pt-4 border-t border-black/10 mb-4">
-                  <p className="text-sm font-bold uppercase tracking-widest">{pdfData.montoEnLetra}</p>
+                <div className="flex items-baseline border-b border-black/5 pb-2">
+                  <span className="text-sm font-bold uppercase w-32 shrink-0">Domicilio:</span>
+                  <span className="text-lg italic ml-4 flex-1 truncate">{pdfData.student?.address || "N/A"}</span>
                 </div>
               </div>
-            </div>
+
+              {/* Conceptos Table */}
+              <div className="mb-10 relative z-10">
+                <h2 className="text-sm font-bold uppercase tracking-widest mb-4">Desglose de Conceptos:</h2>
+                <div className="space-y-3 px-4">
+                  {(pdfData.payment.items || []).map((item: any, idx: number) => (
+                    <div key={idx} className="flex justify-between items-baseline italic border-b border-dashed border-black/10 pb-1">
+                      <span className="text-lg">{item.name} {item.month ? `(${item.month})` : ''}</span>
+                      <span className="text-lg font-bold">${(item.amount || 0).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Caja de Totales */}
+              <div className="bg-slate-50/50 p-8 rounded-2xl border border-black/10 mb-16 relative z-10">
+                <div className="flex justify-between items-center mb-6">
+                  <span className="text-2xl font-bold uppercase tracking-tight text-muted-foreground">Total Pagado:</span>
+                  <span className="text-[40pt] font-black text-primary tracking-tighter">${(pdfData.payment.totalAmount || 0).toLocaleString()} MXN</span>
+                </div>
+                <div className="text-center pt-4 border-t border-black/10 mb-6">
+                  <p className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                    {pdfData.montoEnLetra}
+                  </p>
+                </div>
+                <div className="flex justify-between items-center text-rose-600 pt-2">
+                  <span className="text-xs font-bold uppercase tracking-widest">Saldo pendiente después de este pago:</span>
+                  <span className="text-xl font-black">${(pdfData.student?.outstandingBalance || 0).toLocaleString()} MXN</span>
+                </div>
+              </div>
+
+              {/* Footer de Firma */}
+              <div className="mt-auto pt-20 text-center relative z-10">
+                <div className="inline-block border-t border-black/40 px-20 pt-2">
+                  {pdfData.school.adminSignatureUrl ? (
+                    <img src={pdfData.school.adminSignatureUrl} className="h-20 w-auto mx-auto mb-2 opacity-90" alt="Firma" />
+                  ) : (
+                    <div className="h-16" />
+                  )}
+                  <p className="text-sm font-bold uppercase tracking-widest opacity-60">Firma Autorizada</p>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
