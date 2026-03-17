@@ -1,95 +1,88 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * Escuela Digital MX - Security Rules
-     * Optimized for collection list operations and school-based multi-tenancy.
+     * Escuela Digital MX - Reglas de Seguridad
+     * Optimizadas para multi-tenancy y operaciones de listado.
      */
 
-    // --- Helper Functions ---
+    // --- Funciones Auxiliares ---
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function getStaffData() {
-      // Usamos get().data de forma segura
+    // Obtenemos los datos del staff de forma directa
+    function staffDoc() {
       return get(/databases/$(database)/documents/staff_roles/$(request.auth.uid)).data;
     }
 
-    function isOperationalStaff(staff) {
-      return staff.role == 'Administrador' || staff.role == 'Academico';
-    }
-
-    function isAdmin(staff) {
-      return staff.role == 'Administrador';
-    }
-
-    // --- Collection Rules ---
+    // --- Reglas por Colección ---
 
     match /schools/{schoolId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && isAdmin(getStaffData()) && resource.data.directorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && staffDoc().role == 'Administrador' && resource.data.directorId == request.auth.uid;
     }
 
     match /staff_roles/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin(getStaffData()));
-      allow list: if isSignedIn() && (let staff = getStaffData(); staff.schoolId != null);
+      allow get: if isSignedIn() && (request.auth.uid == userId || staffDoc().role == 'Administrador');
+      allow list: if isSignedIn() && staffDoc().schoolId != null;
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin(getStaffData()));
-      allow delete: if isSignedIn() && isAdmin(getStaffData());
+      allow update: if isSignedIn() && (request.auth.uid == userId || staffDoc().role == 'Administrador');
+      allow delete: if isSignedIn() && staffDoc().role == 'Administrador';
     }
 
     match /students/{studentId} {
-      allow read: if isSignedIn() && (
-        let staff = getStaffData();
-        staff.schoolId == resource.data.schoolId
-      );
-      
-      allow create, update: if isSignedIn() && isOperationalStaff(getStaffData());
-      allow delete: if isSignedIn() && isAdmin(getStaffData());
+      allow read: if isSignedIn() && resource.data.schoolId == staffDoc().schoolId;
+      allow create, update: if isSignedIn() && (staffDoc().role == 'Administrador' || staffDoc().role == 'Academico');
+      allow delete: if isSignedIn() && staffDoc().role == 'Administrador';
       
       match /payments/{paymentId} {
-        allow read: if isSignedIn() && getStaffData().schoolId == get(/databases/$(database)/documents/students/$(studentId)).data.schoolId;
-        allow create, update, delete: if isSignedIn() && isOperationalStaff(getStaffData());
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/students/$(studentId)).data.schoolId == staffDoc().schoolId;
+        allow create, update, delete: if isSignedIn() && (staffDoc().role == 'Administrador' || staffDoc().role == 'Academico');
       }
     }
 
-    match /fee_types/{id} {
-      allow read: if isSignedIn() && (let staff = getStaffData(); resource.data.schoolId == staff.schoolId);
-      allow create, update, delete: if isSignedIn() && isAdmin(getStaffData());
-    }
-    
-    match /schedules/{id} {
-      allow read: if isSignedIn() && (let staff = getStaffData(); resource.data.schoolId == staff.schoolId);
-      allow create, update, delete: if isSignedIn() && isOperationalStaff(getStaffData());
-    }
-
     match /psychology_reports/{reportId} {
-      // Regla optimizada para listados y lectura individual
-      allow read: if isSignedIn() && (
-        let staff = getStaffData();
-        isOperationalStaff(staff) && 
-        (resource == null || resource.data.schoolId == staff.schoolId)
-      );
-      allow create: if isSignedIn() && isOperationalStaff(getStaffData()) && request.resource.data.schoolId == getStaffData().schoolId;
-      allow update: if isSignedIn() && isOperationalStaff(getStaffData()) && resource.data.schoolId == getStaffData().schoolId;
-      allow delete: if isSignedIn() && isAdmin(getStaffData());
+      // Para 'list', Firestore verifica que el filtro schoolId de la query coincida con el schoolId del usuario.
+      // Simplificamos la regla para que sea determinista para el optimizador de queries.
+      allow read: if isSignedIn() && 
+                    (staffDoc().role == 'Administrador' || staffDoc().role == 'Academico') &&
+                    (resource == null || resource.data.schoolId == staffDoc().schoolId);
+      
+      allow create: if isSignedIn() && 
+                      (staffDoc().role == 'Administrador' || staffDoc().role == 'Academico') && 
+                      request.resource.data.schoolId == staffDoc().schoolId;
+      
+      allow update: if isSignedIn() && 
+                      (staffDoc().role == 'Administrador' || staffDoc().role == 'Academico') && 
+                      resource.data.schoolId == staffDoc().schoolId;
+      
+      allow delete: if isSignedIn() && staffDoc().role == 'Administrador';
     }
 
     match /attendance/{id} {
-      allow read: if isSignedIn() && (let staff = getStaffData(); resource.data.schoolId == staff.schoolId);
-      allow create, update: if isSignedIn() && isOperationalStaff(getStaffData());
-      allow delete: if isSignedIn() && isAdmin(getStaffData());
+      allow read: if isSignedIn() && resource.data.schoolId == staffDoc().schoolId;
+      allow create, update: if isSignedIn() && (staffDoc().role == 'Administrador' || staffDoc().role == 'Academico');
+      allow delete: if isSignedIn() && staffDoc().role == 'Administrador';
     }
 
     match /grades/{id} {
-      allow read: if isSignedIn() && (let staff = getStaffData(); staff.schoolId == resource.data.schoolId);
-      allow create, update: if isSignedIn() && isOperationalStaff(getStaffData());
-      allow delete: if isSignedIn() && isAdmin(getStaffData());
+      allow read: if isSignedIn() && resource.data.schoolId == staffDoc().schoolId;
+      allow create, update: if isSignedIn() && (staffDoc().role == 'Administrador' || staffDoc().role == 'Academico');
+      allow delete: if isSignedIn() && staffDoc().role == 'Administrador';
+    }
+
+    match /fee_types/{id} {
+      allow read: if isSignedIn() && resource.data.schoolId == staffDoc().schoolId;
+      allow create, update, delete: if isSignedIn() && staffDoc().role == 'Administrador';
+    }
+    
+    match /schedules/{id} {
+      allow read: if isSignedIn() && resource.data.schoolId == staffDoc().schoolId;
+      allow create, update, delete: if isSignedIn() && (staffDoc().role == 'Administrador' || staffDoc().role == 'Academico');
     }
   }
 }
