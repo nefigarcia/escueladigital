@@ -72,3 +72,28 @@
     @apply font-headline;
   }
 }
+
+/* ── Feature icon animations ── */
+@keyframes icon-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-7px); }
+}
+@keyframes icon-shield-ping {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.18); opacity: 0.85; }
+}
+@keyframes icon-card-swipe {
+  0%, 100% { transform: translateX(0px) rotate(0deg); }
+  30%       { transform: translateX(-5px) rotate(-4deg); }
+  70%       { transform: translateX(5px) rotate(4deg); }
+}
+@keyframes icon-sparkle-spin {
+  0%   { transform: rotate(0deg) scale(1); }
+  50%  { transform: rotate(180deg) scale(1.15); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+.animate-icon-float       { animation: icon-float        3s  ease-in-out infinite; }
+.animate-icon-shield-ping { animation: icon-shield-ping  2s  ease-in-out infinite; }
+.animate-icon-card-swipe  { animation: icon-card-swipe   2.4s ease-in-out infinite; }
+.animate-icon-sparkle     { animation: icon-sparkle-spin 4s  linear      infinite; }
