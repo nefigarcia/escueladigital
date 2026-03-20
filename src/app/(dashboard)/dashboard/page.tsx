@@ -18,6 +18,8 @@ import { useUser, useDoc, useFirestore, useCollection, useMemoFirebase } from "@
 import { doc, collection, query, where } from "firebase/firestore"
 import React from "react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 export default function DashboardPage() {
   const { user } = useUser()
@@ -39,16 +41,11 @@ export default function DashboardPage() {
 
   const isStudent = profile?.role === "Alumno"
   
-  // Real Data Queries for Metrics
   const allStudentsQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.schoolId) return null
     return query(collection(firestore, "students"), where("schoolId", "==", profile.schoolId))
   }, [firestore, profile])
   const { data: students, isLoading: isLoadingStudents } = useCollection(allStudentsQuery)
-
-  // We'll approximate monthly income by fetching student payments if possible
-  // For a full system, a top-level 'payments' collection is better, but here we summarize from students
-  // or show a summary if we had one. For now, let's count active students.
 
   const studentDataQuery = useMemoFirebase(() => {
     if (!firestore || !isStudent || !profile?.studentIdNumber || !profile?.schoolId) return null
@@ -80,6 +77,13 @@ export default function DashboardPage() {
               <p className="text-xs text-muted-foreground mt-1">
                 {studentInfo?.outstandingBalance ? "Tienes pagos pendientes" : "Estás al corriente"}
               </p>
+              {studentInfo?.outstandingBalance > 0 && (
+                <Button asChild className="w-full mt-4 font-bold gap-2" size="sm">
+                  <Link href="/pagos">
+                    <CreditCard className="h-4 w-4" /> Pagar en Línea
+                  </Link>
+                </Button>
+              )}
             </CardContent>
           </Card>
           <Card>

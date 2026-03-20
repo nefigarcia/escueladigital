@@ -505,260 +505,264 @@ export default function PagosPage() {
         </div>
       </div>
 
-      <Tabs defaultValue={isStudent ? "historial" : "nuevo-pago"} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
-          {!isStudent && <TabsTrigger value="nuevo-pago" className="gap-2"><CreditCard className="h-4 w-4" /> Registrar Pago</TabsTrigger>}
-          <TabsTrigger value="historial" className="gap-2"><History className="h-4 w-4" /> Historial</TabsTrigger>
-        </TabsList>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <Tabs defaultValue={isStudent ? "historial" : "nuevo-pago"} className="w-full">
+            <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
+              {!isStudent && <TabsTrigger value="nuevo-pago" className="gap-2"><CreditCard className="h-4 w-4" /> Registrar Pago</TabsTrigger>}
+              <TabsTrigger value="historial" className="gap-2"><History className="h-4 w-4" /> Historial</TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="nuevo-pago">
-          <div className="grid gap-6 lg:grid-cols-3">
-            <Card className="border-none shadow-md lg:col-span-2">
-              <CardHeader className="bg-primary/5 border-b">
-                <CardTitle className="font-headline">Nueva Transacción</CardTitle>
-                <CardDescription>Completa los detalles para generar el recibo oficial.</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-6">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>ID Estudiante (Matrícula)</Label>
-                    <div className="flex gap-2">
-                      <Input value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} placeholder="Matrícula..." onKeyDown={(e) => e.key === 'Enter' && handleSearchStudent()} />
-                      <Button onClick={() => handleSearchStudent()} size="icon" variant="secondary"><Search className="h-4 w-4" /></Button>
+            <TabsContent value="nuevo-pago">
+              {!isStudent && (
+                <Card className="border-none shadow-md">
+                  <CardHeader className="bg-primary/5 border-b">
+                    <CardTitle className="font-headline">Nueva Transacción</CardTitle>
+                    <CardDescription>Completa los detalles para generar el recibo oficial.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-6">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>ID Estudiante (Matrícula)</Label>
+                        <div className="flex gap-2">
+                          <Input value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} placeholder="Matrícula..." onKeyDown={(e) => e.key === 'Enter' && handleSearchStudent()} />
+                          <Button onClick={() => handleSearchStudent()} size="icon" variant="secondary"><Search className="h-4 w-4" /></Button>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Alumno</Label>
+                        <Input value={activeStudent ? `${activeStudent.firstName} ${activeStudent.lastName}` : ""} disabled className="bg-muted/50" />
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Alumno</Label>
-                    <Input value={activeStudent ? `${activeStudent.firstName} ${activeStudent.lastName}` : ""} disabled className="bg-muted/50" />
-                  </div>
-                </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <Label className="text-lg font-bold">Conceptos de Pago</Label>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => addItem('fee')} className="gap-1"><Plus className="h-4 w-4" /> Tarifa</Button>
-                      <Button variant="outline" size="sm" onClick={() => addItem('custom')} className="gap-1"><Plus className="h-4 w-4" /> Otro</Button>
-                    </div>
-                  </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <Label className="text-lg font-bold">Conceptos de Pago</Label>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => addItem('fee')} className="gap-1"><Plus className="h-4 w-4" /> Tarifa</Button>
+                          <Button variant="outline" size="sm" onClick={() => addItem('custom')} className="gap-1"><Plus className="h-4 w-4" /> Otro</Button>
+                        </div>
+                      </div>
 
-                  <div className="space-y-3">
-                    {items.map((item, index) => {
-                      const isColegiatura = item.type === 'fee' && item.name.toLowerCase().includes('colegiatura');
-                      const showMonth = isColegiatura;
+                      <div className="space-y-3">
+                        {items.map((item, index) => {
+                          const isColegiatura = item.type === 'fee' && item.name.toLowerCase().includes('colegiatura');
+                          const showMonth = isColegiatura;
 
-                      return (
-                        <div key={item.id} className="grid grid-cols-12 gap-3 items-start bg-muted/20 p-3 rounded-lg border">
-                          <div className={showMonth ? "col-span-5 space-y-2" : "col-span-8 space-y-2"}>
-                            <Label className="text-[10px] uppercase opacity-50">Concepto</Label>
-                            {item.type === 'fee' ? (
-                              <Select value={item.feeId} onValueChange={(v) => updateItem(item.id, { feeId: v })}>
-                                <SelectTrigger><SelectValue placeholder="Seleccionar tarifa..." /></SelectTrigger>
-                                <SelectContent>
-                                  {fees?.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Input placeholder="Concepto personalizado" value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} />
-                            )}
-                          </div>
-                          
-                          {showMonth && (
-                            <div className="col-span-3 space-y-2">
-                              <Label className="text-[10px] uppercase opacity-50">Mes</Label>
-                              <Select value={item.month} onValueChange={(v) => updateItem(item.id, { month: v })}>
-                                <SelectTrigger><SelectValue placeholder="Mes..." /></SelectTrigger>
-                                <SelectContent>
-                                  {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
+                          return (
+                            <div key={item.id} className="grid grid-cols-12 gap-3 items-start bg-muted/20 p-3 rounded-lg border">
+                              <div className={showMonth ? "col-span-5 space-y-2" : "col-span-8 space-y-2"}>
+                                <Label className="text-[10px] uppercase opacity-50">Concepto</Label>
+                                {item.type === 'fee' ? (
+                                  <Select value={item.feeId} onValueChange={(v) => updateItem(item.id, { feeId: v })}>
+                                    <SelectTrigger><SelectValue placeholder="Seleccionar tarifa..." /></SelectTrigger>
+                                    <SelectContent>
+                                      {fees?.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input placeholder="Concepto personalizado" value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} />
+                                )}
+                              </div>
+                              
+                              {showMonth && (
+                                <div className="col-span-3 space-y-2">
+                                  <Label className="text-[10px] uppercase opacity-50">Mes</Label>
+                                  <Select value={item.month} onValueChange={(v) => updateItem(item.id, { month: v })}>
+                                    <SelectTrigger><SelectValue placeholder="Mes..." /></SelectTrigger>
+                                    <SelectContent>
+                                      {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
+                              
+                              <div className="col-span-3 space-y-2">
+                                <Label className="text-[10px] uppercase opacity-50">Monto</Label>
+                                <Input type="number" value={item.amount || ""} onChange={(e) => updateItem(item.id, { amount: parseFloat(e.target.value) || 0 })} placeholder="0.00" />
+                              </div>
+                              <div className="col-span-1 pt-6">
+                                <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} disabled={items.length === 1}><Trash2 className="h-4 w-4" /></Button>
+                              </div>
                             </div>
-                          )}
-                          
-                          <div className="col-span-3 space-y-2">
-                            <Label className="text-[10px] uppercase opacity-50">Monto</Label>
-                            <Input type="number" value={item.amount || ""} onChange={(e) => updateItem(item.id, { amount: parseFloat(e.target.value) || 0 })} placeholder="0.00" />
-                          </div>
-                          <div className="col-span-1 pt-6">
-                            <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} disabled={items.length === 1}><Trash2 className="h-4 w-4" /></Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                          );
+                        })}
+                      </div>
 
-                  <div className="flex justify-end p-4 bg-primary/5 rounded-lg border border-primary/10">
-                    <div className="text-right">
-                      <p className="text-xs uppercase opacity-50 font-bold">Total a Pagar</p>
-                      <p className="text-2xl font-black text-primary">${totalToPay.toLocaleString()} MXN</p>
+                      <div className="flex justify-end p-4 bg-primary/5 rounded-lg border border-primary/10">
+                        <div className="text-right">
+                          <p className="text-xs uppercase opacity-50 font-bold">Total a Pagar</p>
+                          <p className="text-2xl font-black text-primary">${totalToPay.toLocaleString()} MXN</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2 pt-4 border-t">
+                      <div className="space-y-2">
+                        <Label>Método de Pago</Label>
+                        <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Efectivo">Efectivo</SelectItem>
+                            <SelectItem value="Transferencia">Transferencia</SelectItem>
+                            <SelectItem value="Tarjeta">Tarjeta</SelectItem>
+                            <SelectItem value="Depósito">Depósito Bancario</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Fecha de Pago</Label>
+                        <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="bg-muted/10 border-t pt-6">
+                    <Button className="w-full gap-2" disabled={isProcessing || !activeStudent} onClick={handleProcessPayment}>
+                      {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+                      Finalizar Registro de Pago
+                    </Button>
+                  </CardFooter>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="historial">
+              <Card className="border-none shadow-md overflow-hidden">
+                <CardHeader className="bg-muted/10 border-b">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="font-headline">Historial de Transacciones</CardTitle>
+                    {activeStudent && <Badge variant="outline" className="bg-white">ID: {activeStudent.studentIdNumber}</Badge>}
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="rounded-md border bg-white">
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow>
+                          <TableHead>Fecha</TableHead>
+                          <TableHead>Conceptos / Mes</TableHead>
+                          <TableHead>Método</TableHead>
+                          <TableHead>Monto Total</TableHead>
+                          <TableHead className="text-right">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {isLoadingPayments ? (
+                          <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                        ) : payments?.length ? payments.map(p => (
+                          <TableRow key={p.id} className="hover:bg-muted/5 transition-colors">
+                            <TableCell className="font-medium">{new Date(p.paymentDate + 'T12:00:00').toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-1">
+                                {p.items?.map((item: any, idx: number) => (
+                                  <div key={idx} className="text-xs flex items-center gap-2">
+                                    <span className="font-bold">{item.name}</span>
+                                    {item.month && <Badge variant="secondary" className="h-4 text-[9px] uppercase">{item.month}</Badge>}
+                                  </div>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell><Badge variant="outline" className="bg-slate-50">{p.paymentMethod}</Badge></TableCell>
+                            <TableCell className="font-black text-primary text-lg">${(p.totalAmount || 0).toLocaleString()}</TableCell>
+                            <TableCell className="text-right flex justify-end gap-1">
+                              {!isStudent && (
+                                <Button variant="ghost" size="icon" onClick={() => handleOpenEditPayment(p)} title="Editar Transacción">
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="icon" onClick={() => handleDownloadPDF(p)} title="Descargar Recibo PDF">
+                                {isGeneratingPDF === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                              </Button>
+                              {!isStudent && (
+                                <Button variant="ghost" size="icon" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => handleWhatsAppNotify(p)} title="Enviar por WhatsApp">
+                                  {isSendingWA === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )) : (
+                          <TableRow><TableCell colSpan={5} className="text-center py-20 text-muted-foreground">{activeStudent ? "No hay transacciones registradas." : "Selecciona un alumno para ver su historial."}</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        <div className="space-y-6">
+          {activeStudent ? (
+            <div className="space-y-4">
+              <Card className={`border-none shadow-lg overflow-hidden transition-colors ${remainingBalanceAfterThis > 0 ? 'bg-rose-600' : 'bg-emerald-600'} text-white`}>
+                <CardHeader className="pb-4">
+                  <CardTitle className="font-headline text-2xl">Resumen Estudiantil</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-16 w-16 border-2 border-white/20 bg-white/10 text-white">
+                      <AvatarImage src={`https://picsum.photos/seed/${activeStudent.id}/100/100`} />
+                      <AvatarFallback><UserCircle className="h-12 w-12" /></AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-bold text-xl leading-tight">{activeStudent.firstName} {activeStudent.lastName}</p>
+                      <p className="text-sm opacity-90">{activeStudent.gradeLevel}</p>
+                      <Badge variant="secondary" className="mt-1 bg-white/20 text-white border-none text-[10px]">
+                        MAT: {activeStudent.studentIdNumber}
+                      </Badge>
                     </div>
                   </div>
-                </div>
+                  
+                  <div className="h-px bg-white/20" />
+                  
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">SALDO ACTUAL</p>
+                      <p className="text-3xl font-black tracking-tight">
+                        ${currentDebt.toLocaleString()} <span className="text-sm font-normal opacity-70">MXN</span>
+                      </p>
+                    </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 pt-4 border-t">
-                  <div className="space-y-2">
-                    <Label>Método de Pago</Label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Efectivo">Efectivo</SelectItem>
-                        <SelectItem value="Transferencia">Transferencia</SelectItem>
-                        <SelectItem value="Tarjeta">Tarjeta</SelectItem>
-                        <SelectItem value="Depósito">Depósito Bancario</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-1 p-3 bg-white/10 rounded-lg">
+                      <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">SALDO PENDIENTE DESPUÉS DE ESTE PAGO</p>
+                      <p className="text-2xl font-black tracking-tight text-white">
+                        ${remainingBalanceAfterThis.toLocaleString()} <span className="text-sm font-normal opacity-70">MXN</span>
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Fecha de Pago</Label>
-                    <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="bg-muted/10 border-t pt-6">
-                <Button className="w-full gap-2" disabled={isProcessing || !activeStudent} onClick={handleProcessPayment}>
-                  {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
-                  Finalizar Registro de Pago
-                </Button>
-              </CardFooter>
-            </Card>
+                </CardContent>
+              </Card>
 
-            <div className="space-y-6">
-              {activeStudent ? (
-                <div className="space-y-4">
-                  <Card className={`border-none shadow-lg overflow-hidden transition-colors ${remainingBalanceAfterThis > 0 ? 'bg-rose-600' : 'bg-emerald-600'} text-white`}>
-                    <CardHeader className="pb-4">
-                      <CardTitle className="font-headline text-2xl">Resumen Estudiantil</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="flex items-center gap-4">
-                        <Avatar className="h-16 w-16 border-2 border-white/20 bg-white/10 text-white">
-                          <AvatarImage src={`https://picsum.photos/seed/${activeStudent.id}/100/100`} />
-                          <AvatarFallback><UserCircle className="h-12 w-12" /></AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-bold text-xl leading-tight">{activeStudent.firstName} {activeStudent.lastName}</p>
-                          <p className="text-sm opacity-90">{activeStudent.gradeLevel}</p>
-                          <Badge variant="secondary" className="mt-1 bg-white/20 text-white border-none text-[10px]">
-                            MAT: {activeStudent.studentIdNumber}
-                          </Badge>
-                        </div>
-                      </div>
-                      
-                      <div className="h-px bg-white/20" />
-                      
-                      <div className="space-y-4">
-                        <div className="space-y-1">
-                          <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">SALDO ACTUAL</p>
-                          <p className="text-3xl font-black tracking-tight">
-                            ${currentDebt.toLocaleString()} <span className="text-sm font-normal opacity-70">MXN</span>
-                          </p>
-                        </div>
-
-                        <div className="space-y-1 p-3 bg-white/10 rounded-lg">
-                          <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">SALDO PENDIENTE DESPUÉS DE ESTE PAGO</p>
-                          <p className="text-2xl font-black tracking-tight text-white">
-                            ${remainingBalanceAfterThis.toLocaleString()} <span className="text-sm font-normal opacity-70">MXN</span>
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {activeStudent.outstandingBalance > 0 && (
-                    <Card className="border-none shadow-md bg-accent text-accent-foreground">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Zap className="h-5 w-5" /> Pago Seguro en Línea
-                        </CardTitle>
-                        <CardDescription className="text-accent-foreground/80">Paga ahora con Tarjeta, SPEI u OXXO.</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <Button 
-                          className="w-full bg-white text-primary hover:bg-white/90 font-bold"
-                          disabled={isStripeLoading}
-                          onClick={handleOnlinePayment}
-                        >
-                          {isStripeLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
-                          Pagar ${activeStudent.outstandingBalance.toLocaleString()} MXN
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-xl bg-muted/10 opacity-40 text-center">
-                  <UserCircle className="h-16 w-16 mb-4" />
-                  <p className="text-sm font-medium">Busca un estudiante para ver su resumen financiero.</p>
-                </div>
+              {activeStudent.outstandingBalance > 0 && (
+                <Card className="border-none shadow-md bg-accent text-accent-foreground">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Zap className="h-5 w-5" /> Pago Seguro en Línea
+                    </CardTitle>
+                    <CardDescription className="text-accent-foreground/80">Paga ahora con Tarjeta, SPEI u OXXO.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      className="w-full bg-white text-primary hover:bg-white/90 font-bold"
+                      disabled={isStripeLoading}
+                      onClick={handleOnlinePayment}
+                    >
+                      {isStripeLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
+                      Pagar ${activeStudent.outstandingBalance.toLocaleString()} MXN
+                    </Button>
+                  </CardContent>
+                </Card>
               )}
             </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="historial">
-          <Card className="border-none shadow-md overflow-hidden">
-            <CardHeader className="bg-muted/10 border-b">
-              <div className="flex justify-between items-center">
-                <CardTitle className="font-headline">Historial de Transacciones</CardTitle>
-                {activeStudent && <Badge variant="outline" className="bg-white">ID: {activeStudent.studentIdNumber}</Badge>}
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="rounded-md border bg-white">
-                <Table>
-                  <TableHeader className="bg-muted/30">
-                    <TableRow>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Conceptos / Mes</TableHead>
-                      <TableHead>Método</TableHead>
-                      <TableHead>Monto Total</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoadingPayments ? (
-                      <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                    ) : payments?.length ? payments.map(p => (
-                      <TableRow key={p.id} className="hover:bg-muted/5 transition-colors">
-                        <TableCell className="font-medium">{new Date(p.paymentDate + 'T12:00:00').toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            {p.items?.map((item: any, idx: number) => (
-                              <div key={idx} className="text-xs flex items-center gap-2">
-                                <span className="font-bold">{item.name}</span>
-                                {item.month && <Badge variant="secondary" className="h-4 text-[9px] uppercase">{item.month}</Badge>}
-                              </div>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell><Badge variant="outline" className="bg-slate-50">{p.paymentMethod}</Badge></TableCell>
-                        <TableCell className="font-black text-primary text-lg">${(p.totalAmount || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-right flex justify-end gap-1">
-                          {!isStudent && (
-                            <Button variant="ghost" size="icon" onClick={() => handleOpenEditPayment(p)} title="Editar Transacción">
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button variant="ghost" size="icon" onClick={() => handleDownloadPDF(p)} title="Descargar Recibo PDF">
-                            {isGeneratingPDF === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                          </Button>
-                          {!isStudent && (
-                            <Button variant="ghost" size="icon" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => handleWhatsAppNotify(p)} title="Enviar por WhatsApp">
-                              {isSendingWA === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )) : (
-                      <TableRow><TableCell colSpan={5} className="text-center py-20 text-muted-foreground">{activeStudent ? "No hay transacciones registradas." : "Selecciona un alumno para ver su historial."}</TableCell></TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-xl bg-muted/10 opacity-40 text-center">
+              <UserCircle className="h-16 w-16 mb-4" />
+              <p className="text-sm font-medium">Busca un estudiante para ver su resumen financiero.</p>
+            </div>
+          )}
+        </div>
+      </div>
 
       <Dialog open={isEditPaymentOpen} onOpenChange={setIsEditPaymentOpen}>
         <DialogContent className="sm:max-w-[500px]">

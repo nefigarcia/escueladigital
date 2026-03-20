@@ -17,8 +17,8 @@ service cloud.firestore {
     }
 
     function isStaff() {
-      let profile = getProfileData();
-      return profile.role == 'Administrador' || profile.role == 'Academico';
+      let role = getProfileData().role;
+      return role == 'Administrador' || role == 'Academico';
     }
 
     function isAdmin() {
@@ -51,11 +51,12 @@ service cloud.firestore {
     }
 
     match /psychology_reports/{reportId} {
-      // Permitir listado si el usuario es staff y filtra por su propia escuela
-      allow list: if isSignedIn() && isStaff() && request.query.limit <= 100;
+      // Permitir listado solo si se filtra por la escuela del usuario staff
+      allow list: if isSignedIn() && isStaff() && request.query.filters.schoolId == getProfileData().schoolId;
       
       // Permitir lectura individual y escritura si coincide la escuela
-      allow get, create, update: if isSignedIn() && isStaff() && isSameSchool(request.resource.data.schoolId || resource.data.schoolId);
+      allow get: if isSignedIn() && isStaff() && isSameSchool(resource.data.schoolId);
+      allow create, update: if isSignedIn() && isStaff() && isSameSchool(request.resource.data.schoolId);
       allow delete: if isSignedIn() && isAdmin();
     }
 
