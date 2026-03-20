@@ -20,7 +20,9 @@ import {
   Plus,
   Trash2,
   CalendarDays,
-  UserCircle
+  UserCircle,
+  Edit2,
+  Save
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -33,6 +35,15 @@ import { smartParentCommunicationsDrafting } from "@/ai/flows/smart-parent-commu
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
+} from "@/components/ui/dialog"
 
 interface PaymentItem {
   id: string;
@@ -64,6 +75,10 @@ export default function PagosPage() {
 
   const [selectedStudentId, setSelectedStudentId] = React.useState<string>(initialStudentId)
   const [activeStudentId, setActiveStudentId] = React.useState<string | null>(null)
+
+  // Edit Payment State
+  const [isEditPaymentOpen, setIsEditPaymentOpen] = React.useState(false)
+  const [paymentToEdit, setPaymentToEdit] = React.useState<any>(null)
 
   React.useEffect(() => {
     setMounted(true)
@@ -100,6 +115,7 @@ export default function PagosPage() {
   const [receivedFrom, setReceivedFrom] = React.useState<string>("")
   const [isProcessing, setIsProcessing] = React.useState(false)
 
+  // Default type is 'fee' now
   const [items, setItems] = React.useState<PaymentItem[]>([
     { id: Math.random().toString(36).substr(2, 9), type: 'fee', name: '', amount: 0, baseAmount: 0, month: "" }
   ])
@@ -291,6 +307,25 @@ export default function PagosPage() {
       }, 500);
     } catch (e) { setIsGeneratingPDF(null); }
   };
+
+  const handleOpenEditPayment = (payment: any) => {
+    setPaymentToEdit({ ...payment })
+    setIsEditPaymentOpen(true)
+  }
+
+  const handleSaveEditPayment = () => {
+    if (!firestore || !paymentToEdit || !activeStudentId) return
+    const paymentDocRef = doc(firestore, "students", activeStudentId, "payments", paymentToEdit.id)
+    updateDocumentNonBlocking(paymentDocRef, {
+      paymentDate: paymentToEdit.paymentDate,
+      paymentMethod: paymentToEdit.paymentMethod,
+      receivedFrom: paymentToEdit.receivedFrom,
+      updatedAt: serverTimestamp(),
+    })
+    setIsEditPaymentOpen(false)
+    setPaymentToEdit(null)
+    toast({ title: "Transacción actualizada" })
+  }
 
   if (!mounted) return null
 
@@ -589,7 +624,7 @@ export default function PagosPage() {
                       <TableHead>Conceptos / Mes</TableHead>
                       <TableHead>Método</TableHead>
                       <TableHead>Monto Total</TableHead>
-                      <TableHead className="text-right">Recibo</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -611,6 +646,11 @@ export default function PagosPage() {
                         <TableCell><Badge variant="outline" className="bg-slate-50">{p.paymentMethod}</Badge></TableCell>
                         <TableCell className="font-black text-primary text-lg">${(p.totalAmount || 0).toLocaleString()}</TableCell>
                         <TableCell className="text-right flex justify-end gap-1">
+                          {!isStudent && (
+                            <Button variant="ghost" size="icon" onClick={() => handleOpenEditPayment(p)} title="Editar Transacción">
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" onClick={() => handleDownloadPDF(p)} title="Descargar Recibo PDF">
                             {isGeneratingPDF === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                           </Button>
@@ -631,6 +671,61 @@ export default function PagosPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Payment Dialog */}
+      <Dialog open={isEditPaymentOpen} onOpenChange={setIsEditPaymentOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Transacción</DialogTitle>
+            <DialogDescription>Modifica los detalles generales del pago.</DialogDescription>
+          </DialogHeader>
+          {paymentToEdit && (
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Recibido de</Label>
+                <Input 
+                  value={paymentToEdit.receivedFrom} 
+                  onChange={(e) => setPaymentToEdit({...paymentToEdit, receivedFrom: e.target.value})} 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Fecha de Pago</Label>
+                  <Input 
+                    type="date" 
+                    value={paymentToEdit.paymentDate} 
+                    onChange={(e) => setPaymentToEdit({...paymentToEdit, paymentDate: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Método de Pago</Label>
+                  <Select 
+                    value={paymentToEdit.paymentMethod} 
+                    onValueChange={(v) => setPaymentToEdit({...paymentToEdit, paymentMethod: v})}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Efectivo">Efectivo</SelectItem>
+                      <SelectItem value="Transferencia">Transferencia</SelectItem>
+                      <SelectItem value="Tarjeta">Tarjeta</SelectItem>
+                      <SelectItem value="Depósito">Depósito Bancario</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="p-3 bg-muted rounded-lg border text-xs text-muted-foreground italic">
+                Nota: La edición de montos no está permitida en esta vista para preservar la integridad de los balances. Si necesitas corregir un monto, por favor elimina el registro y crea uno nuevo.
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditPaymentOpen(false)}>Cancelar</Button>
+            <Button className="gap-2" onClick={handleSaveEditPayment}>
+              <Save className="h-4 w-4" /> Guardar Cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
