@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -39,6 +40,7 @@ interface PaymentItem {
   feeId?: string;
   name: string;
   amount: number;
+  baseAmount: number; // Original amount from config
   month?: string;
 }
 
@@ -99,7 +101,7 @@ export default function PagosPage() {
   const [isProcessing, setIsProcessing] = React.useState(false)
 
   const [items, setItems] = React.useState<PaymentItem[]>([
-    { id: Math.random().toString(36).substr(2, 9), type: 'fee', name: '', amount: 0, month: "" }
+    { id: Math.random().toString(36).substr(2, 9), type: 'custom', name: '', amount: 0, baseAmount: 0, month: "" }
   ])
 
   React.useEffect(() => {
@@ -153,6 +155,7 @@ export default function PagosPage() {
       type, 
       name: '', 
       amount: 0,
+      baseAmount: 0,
       month: ""
     };
     setItems([...items, newItem])
@@ -171,14 +174,18 @@ export default function PagosPage() {
           const fee = fees?.find(f => f.id === updates.feeId)
           if (fee) {
             updated.name = fee.name
+            updated.baseAmount = fee.baseAmount || 0
             updated.amount = fee.baseAmount || 0
-            // Reset month if not colegiatura
-            if (!fee.name.toLowerCase().includes('colegiatura')) {
+            if (fee.name.toLowerCase().includes('colegiatura')) {
+              updated.month = updated.month || MONTHS[new Date().getMonth()];
+            } else {
               updated.month = "";
-            } else if (!updated.month) {
-              updated.month = MONTHS[new Date().getMonth()];
             }
           }
+        }
+        // If type custom, baseAmount equals paid amount to not create debt unless specified
+        if (item.type === 'custom') {
+            updated.baseAmount = updated.amount;
         }
         return updated
       }
@@ -187,12 +194,23 @@ export default function PagosPage() {
     setItems(newList);
   }
 
-  const formTotal = items.reduce((sum, it) => sum + (it.amount || 0), 0)
-  const remainingBalanceAfterThis = Math.max(0, (activeStudent?.outstandingBalance || 0) - formTotal);
+  // Math for calculations
+  const totalToPay = items.reduce((sum, it) => sum + (it.amount || 0), 0)
+  
+  // Outstanding logic: 
+  // Debt change = Sum(baseAmount - amountPaid)
+  const debtDelta = items.reduce((acc, item) => {
+    const base = item.type === 'fee' ? (item.baseAmount || 0) : (item.amount || 0);
+    const paid = item.amount || 0;
+    return acc + (base - paid);
+  }, 0);
+
+  const currentDebt = Number(activeStudent?.outstandingBalance || 0);
+  const remainingBalanceAfterThis = Math.max(0, currentDebt + debtDelta);
 
   const handleProcessPayment = async () => {
     if (!activeStudent || !firestore || !profile?.schoolId) return
-    if (formTotal <= 0) return
+    if (totalToPay <= 0) return
 
     setIsProcessing(true)
     
@@ -203,10 +221,11 @@ export default function PagosPage() {
         studentId: activeStudent.id,
         studentName: `${activeStudent.firstName} ${activeStudent.lastName}`,
         items: items,
-        totalAmount: formTotal,
+        totalAmount: totalToPay,
         paymentDate: paymentDate,
         paymentMethod: paymentMethod,
         receivedFrom: receivedFrom,
+        remainingBalanceAfterThis: remainingBalanceAfterThis,
         status: 'completado',
         createdAt: serverTimestamp(),
       }
@@ -220,7 +239,7 @@ export default function PagosPage() {
       })
       
       toast({ title: "Pago Procesado con Éxito" })
-      setItems([{ id: Math.random().toString(36).substr(2, 9), type: 'fee', name: '', amount: 0, month: "" }])
+      setItems([{ id: Math.random().toString(36).substr(2, 9), type: 'custom', name: '', amount: 0, baseAmount: 0, month: "" }])
     } catch (error) {
       toast({ variant: "destructive", title: "Error al procesar", description: "Ocurrió un problema al guardar el pago." })
     } finally {
@@ -239,7 +258,7 @@ export default function PagosPage() {
         templateName: "avisoGeneral",
         contextData: {
           studentName: payment.studentName,
-          additionalDetails: `Confirmamos el recibo de su pago por $${payment.totalAmount.toLocaleString()} MXN el día ${new Date(payment.paymentDate + 'T12:00:00').toLocaleDateString()}. ¡Gracias!`
+          additionalDetails: `Confirmamos el recibo de su pago por $${payment.totalAmount.toLocaleString()} MXN el día ${new Date(payment.paymentDate + 'T12:00:00').toLocaleDateString()}. Su saldo restante es de $${payment.remainingBalanceAfterThis.toLocaleString()} MXN. ¡Gracias!`
         }
       })
       const text = encodeURIComponent(draft.draftMessage)
@@ -261,7 +280,7 @@ export default function PagosPage() {
         school,
         montoEnLetra: numberToWords(payment.totalAmount || 0),
         dateFormatted: new Date(payment.paymentDate + 'T12:00:00').toLocaleDateString(),
-        remainingBalanceAfterThis: Math.max(0, (activeStudent?.outstandingBalance || 0) - (payment.totalAmount || 0))
+        finalBalance: payment.remainingBalanceAfterThis ?? remainingBalanceAfterThis
       };
       setPdfData(fullData);
       setTimeout(async () => {
@@ -286,14 +305,12 @@ export default function PagosPage() {
         <div ref={pdfTemplateRef} className="w-[210mm] p-[15mm] bg-white text-black font-serif min-h-[297mm] relative overflow-hidden">
           {pdfData && (
             <>
-              {/* Marca de agua PAGADO */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.08] select-none">
                 <div className="text-[140px] font-black text-rose-600 border-[16px] border-rose-600 px-10 py-4 -rotate-[35deg] tracking-widest uppercase">
                   PAGADO
                 </div>
               </div>
 
-              {/* Header Principal */}
               <div className="flex justify-between items-start mb-10 relative z-10">
                 <div className="w-1/3">
                   {pdfData.school.logoUrl ? (
@@ -311,7 +328,6 @@ export default function PagosPage() {
 
               <div className="h-[2px] bg-black/80 w-full mb-8" />
 
-              {/* Folio y Fecha */}
               <div className="flex justify-between items-start mb-8 relative z-10">
                 <div>
                   <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-1">Recibo de Pago</h2>
@@ -323,7 +339,6 @@ export default function PagosPage() {
                 </div>
               </div>
 
-              {/* Datos del Alumno Grid */}
               <div className="grid grid-cols-1 gap-y-4 mb-10 relative z-10 border-y border-black/5 py-6">
                 <div className="flex items-baseline border-b border-black/5 pb-2">
                   <span className="text-sm font-bold uppercase w-32 shrink-0">Recibí de:</span>
@@ -343,19 +358,8 @@ export default function PagosPage() {
                     <span className="text-lg italic ml-4">{pdfData.student?.gradeLevel}</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-x-8">
-                  <div className="flex items-baseline border-b border-black/5 pb-2">
-                    <span className="text-sm font-bold uppercase w-32 shrink-0">Teléfono:</span>
-                    <span className="text-lg italic ml-4">{pdfData.student?.phone}</span>
-                  </div>
-                  <div className="flex items-baseline border-b border-black/5 pb-2">
-                    <span className="text-sm font-bold uppercase w-24 shrink-0">Método:</span>
-                    <span className="text-lg italic ml-4">{pdfData.payment.paymentMethod}</span>
-                  </div>
-                </div>
               </div>
 
-              {/* Conceptos Table */}
               <div className="mb-10 relative z-10">
                 <h2 className="text-sm font-bold uppercase tracking-widest mb-4">Desglose de Conceptos:</h2>
                 <div className="space-y-3 px-4">
@@ -368,7 +372,6 @@ export default function PagosPage() {
                 </div>
               </div>
 
-              {/* Caja de Totales */}
               <div className="bg-slate-50/50 p-8 rounded-2xl border border-black/10 mb-16 relative z-10">
                 <div className="flex justify-between items-center mb-6">
                   <span className="text-2xl font-bold uppercase tracking-tight text-muted-foreground">Total Pagado:</span>
@@ -381,11 +384,10 @@ export default function PagosPage() {
                 </div>
                 <div className="flex justify-between items-center text-rose-600 pt-2">
                   <span className="text-xs font-bold uppercase tracking-widest">Saldo pendiente después de este pago:</span>
-                  <span className="text-xl font-black">${(pdfData.remainingBalanceAfterThis || 0).toLocaleString()} MXN</span>
+                  <span className="text-xl font-black">${(pdfData.finalBalance || 0).toLocaleString()} MXN</span>
                 </div>
               </div>
 
-              {/* Footer de Firma */}
               <div className="mt-auto pt-20 text-center relative z-10">
                 <div className="inline-block border-t border-black/40 px-20 pt-2">
                   {pdfData.school.adminSignatureUrl ? (
@@ -446,49 +448,54 @@ export default function PagosPage() {
                   </div>
 
                   <div className="space-y-3">
-                    {items.map((item, index) => (
-                      <div key={item.id} className="grid grid-cols-12 gap-3 items-start bg-muted/20 p-3 rounded-lg border">
-                        <div className={item.type === 'fee' && item.name.toLowerCase().includes('colegiatura') ? "col-span-5 space-y-2" : "col-span-8 space-y-2"}>
-                          <Label className="text-[10px] uppercase opacity-50">Concepto</Label>
-                          {item.type === 'fee' ? (
-                            <Select value={item.feeId} onValueChange={(v) => updateItem(item.id, { feeId: v })}>
-                              <SelectTrigger><SelectValue placeholder="Seleccionar tarifa..." /></SelectTrigger>
-                              <SelectContent>
-                                {fees?.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <Input placeholder="Concepto personalizado" value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} />
-                          )}
-                        </div>
-                        
-                        {item.type === 'fee' && item.name.toLowerCase().includes('colegiatura') && (
-                          <div className="col-span-3 space-y-2">
-                            <Label className="text-[10px] uppercase opacity-50">Mes</Label>
-                            <Select value={item.month} onValueChange={(v) => updateItem(item.id, { month: v })}>
-                              <SelectTrigger><SelectValue placeholder="Mes..." /></SelectTrigger>
-                              <SelectContent>
-                                {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
+                    {items.map((item, index) => {
+                      const isColegiatura = item.type === 'fee' && item.name.toLowerCase().includes('colegiatura');
+                      const showMonth = isColegiatura;
+
+                      return (
+                        <div key={item.id} className="grid grid-cols-12 gap-3 items-start bg-muted/20 p-3 rounded-lg border">
+                          <div className={showMonth ? "col-span-5 space-y-2" : "col-span-8 space-y-2"}>
+                            <Label className="text-[10px] uppercase opacity-50">Concepto</Label>
+                            {item.type === 'fee' ? (
+                              <Select value={item.feeId} onValueChange={(v) => updateItem(item.id, { feeId: v })}>
+                                <SelectTrigger><SelectValue placeholder="Seleccionar tarifa..." /></SelectTrigger>
+                                <SelectContent>
+                                  {fees?.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input placeholder="Concepto personalizado" value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} />
+                            )}
                           </div>
-                        )}
-                        
-                        <div className="col-span-3 space-y-2">
-                          <Label className="text-[10px] uppercase opacity-50">Monto</Label>
-                          <Input type="number" value={item.amount || ""} onChange={(e) => updateItem(item.id, { amount: parseFloat(e.target.value) || 0 })} placeholder="0.00" />
+                          
+                          {showMonth && (
+                            <div className="col-span-3 space-y-2">
+                              <Label className="text-[10px] uppercase opacity-50">Mes</Label>
+                              <Select value={item.month} onValueChange={(v) => updateItem(item.id, { month: v })}>
+                                <SelectTrigger><SelectValue placeholder="Mes..." /></SelectTrigger>
+                                <SelectContent>
+                                  {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                          
+                          <div className="col-span-3 space-y-2">
+                            <Label className="text-[10px] uppercase opacity-50">Monto</Label>
+                            <Input type="number" value={item.amount || ""} onChange={(e) => updateItem(item.id, { amount: parseFloat(e.target.value) || 0 })} placeholder="0.00" />
+                          </div>
+                          <div className="col-span-1 pt-6">
+                            <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} disabled={items.length === 1}><Trash2 className="h-4 w-4" /></Button>
+                          </div>
                         </div>
-                        <div className="col-span-1 pt-6">
-                          <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} disabled={items.length === 1}><Trash2 className="h-4 w-4" /></Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="flex justify-end p-4 bg-primary/5 rounded-lg border border-primary/10">
                     <div className="text-right">
                       <p className="text-xs uppercase opacity-50 font-bold">Total a Pagar</p>
-                      <p className="text-2xl font-black text-primary">${formTotal.toLocaleString()} MXN</p>
+                      <p className="text-2xl font-black text-primary">${totalToPay.toLocaleString()} MXN</p>
                     </div>
                   </div>
                 </div>
@@ -520,49 +527,46 @@ export default function PagosPage() {
               </CardFooter>
             </Card>
 
-            {/* Sidebar: Resumen Estudiantil */}
             <div className="space-y-6">
               {activeStudent ? (
-                <>
-                  <Card className={`border-none shadow-lg overflow-hidden transition-colors ${Number(activeStudent.outstandingBalance || 0) > 0 ? 'bg-rose-600' : 'bg-emerald-600'} text-white`}>
-                    <CardHeader className="pb-4">
-                      <CardTitle className="font-headline text-2xl">Resumen Estudiantil</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="flex items-center gap-4">
-                        <Avatar className="h-16 w-16 border-2 border-white/20 bg-white/10 text-white">
-                          <AvatarImage src={`https://picsum.photos/seed/${activeStudent.id}/100/100`} />
-                          <AvatarFallback><UserCircle className="h-12 w-12" /></AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-bold text-xl leading-tight">{activeStudent.firstName} {activeStudent.lastName}</p>
-                          <p className="text-sm opacity-90">{activeStudent.gradeLevel}</p>
-                          <Badge variant="secondary" className="mt-1 bg-white/20 text-white border-none text-[10px]">
-                            MAT: {activeStudent.studentIdNumber}
-                          </Badge>
-                        </div>
+                <Card className={`border-none shadow-lg overflow-hidden transition-colors ${remainingBalanceAfterThis > 0 ? 'bg-rose-600' : 'bg-emerald-600'} text-white`}>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="font-headline text-2xl">Resumen Estudiantil</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-16 w-16 border-2 border-white/20 bg-white/10 text-white">
+                        <AvatarImage src={`https://picsum.photos/seed/${activeStudent.id}/100/100`} />
+                        <AvatarFallback><UserCircle className="h-12 w-12" /></AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-bold text-xl leading-tight">{activeStudent.firstName} {activeStudent.lastName}</p>
+                        <p className="text-sm opacity-90">{activeStudent.gradeLevel}</p>
+                        <Badge variant="secondary" className="mt-1 bg-white/20 text-white border-none text-[10px]">
+                          MAT: {activeStudent.studentIdNumber}
+                        </Badge>
                       </div>
-                      
-                      <div className="h-px bg-white/20" />
-                      
-                      <div className="space-y-4">
-                        <div className="space-y-1">
-                          <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">SALDO ACTUAL</p>
-                          <p className="text-3xl font-black tracking-tight">
-                            ${Number(activeStudent.outstandingBalance || 0).toLocaleString()} <span className="text-sm font-normal opacity-70">MXN</span>
-                          </p>
-                        </div>
+                    </div>
+                    
+                    <div className="h-px bg-white/20" />
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">SALDO ACTUAL</p>
+                        <p className="text-3xl font-black tracking-tight">
+                          ${currentDebt.toLocaleString()} <span className="text-sm font-normal opacity-70">MXN</span>
+                        </p>
+                      </div>
 
-                        <div className="space-y-1 p-3 bg-white/10 rounded-lg">
-                          <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">SALDO DESPUÉS DE ESTE PAGO</p>
-                          <p className="text-2xl font-black tracking-tight text-white">
-                            ${remainingBalanceAfterThis.toLocaleString()} <span className="text-sm font-normal opacity-70">MXN</span>
-                          </p>
-                        </div>
+                      <div className="space-y-1 p-3 bg-white/10 rounded-lg">
+                        <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">SALDO PENDIENTE DESPUÉS DE ESTE PAGO</p>
+                        <p className="text-2xl font-black tracking-tight text-white">
+                          ${remainingBalanceAfterThis.toLocaleString()} <span className="text-sm font-normal opacity-70">MXN</span>
+                        </p>
                       </div>
-                    </CardContent>
-                  </Card>
-                </>
+                    </div>
+                  </CardContent>
+                </Card>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-xl bg-muted/10 opacity-40 text-center">
                   <UserCircle className="h-16 w-16 mb-4" />
@@ -577,14 +581,8 @@ export default function PagosPage() {
           <Card className="border-none shadow-md overflow-hidden">
             <CardHeader className="bg-muted/10 border-b">
               <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle className="font-headline">Historial de Transacciones</CardTitle>
-                </div>
-                {activeStudent && (
-                  <Badge variant="outline" className="bg-white">
-                    ID: {activeStudent.studentIdNumber}
-                  </Badge>
-                )}
+                <CardTitle className="font-headline">Historial de Transacciones</CardTitle>
+                {activeStudent && <Badge variant="outline" className="bg-white">ID: {activeStudent.studentIdNumber}</Badge>}
               </div>
             </CardHeader>
             <CardContent className="pt-6">
@@ -604,9 +602,7 @@ export default function PagosPage() {
                       <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
                     ) : payments?.length ? payments.map(p => (
                       <TableRow key={p.id} className="hover:bg-muted/5 transition-colors">
-                        <TableCell className="font-medium">
-                          {new Date(p.paymentDate + 'T12:00:00').toLocaleDateString()}
-                        </TableCell>
+                        <TableCell className="font-medium">{new Date(p.paymentDate + 'T12:00:00').toLocaleDateString()}</TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             {p.items?.map((item: any, idx: number) => (
@@ -617,12 +613,8 @@ export default function PagosPage() {
                             ))}
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="bg-slate-50">{p.paymentMethod}</Badge>
-                        </TableCell>
-                        <TableCell className="font-black text-primary text-lg">
-                          ${(p.totalAmount || 0).toLocaleString()}
-                        </TableCell>
+                        <TableCell><Badge variant="outline" className="bg-slate-50">{p.paymentMethod}</Badge></TableCell>
+                        <TableCell className="font-black text-primary text-lg">${(p.totalAmount || 0).toLocaleString()}</TableCell>
                         <TableCell className="text-right flex justify-end gap-1">
                           <Button variant="ghost" size="icon" onClick={() => handleDownloadPDF(p)} title="Descargar Recibo PDF">
                             {isGeneratingPDF === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
@@ -635,11 +627,7 @@ export default function PagosPage() {
                         </TableCell>
                       </TableRow>
                     )) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
-                          {activeStudent ? "No hay transacciones registradas." : "Selecciona un alumno para ver su historial."}
-                        </TableCell>
-                      </TableRow>
+                      <TableRow><TableCell colSpan={5} className="text-center py-20 text-muted-foreground">{activeStudent ? "No hay transacciones registradas." : "Selecciona un alumno para ver su historial."}</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>

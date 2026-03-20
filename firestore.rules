@@ -1,22 +1,29 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * Escuela Digital MX - Reglas de Seguridad Optimizadas
+     * Escuela Digital MX - Reglas de Seguridad Centralizadas
      */
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function getStaff() {
+    function getStaffData() {
       return get(/databases/$(database)/documents/staff_roles/$(request.auth.uid)).data;
+    }
+
+    // Regla de conveniencia para staff (Administrador o Academico)
+    function isStaff() {
+      let role = getStaffData().role;
+      return role == 'Administrador' || role == 'Academico';
     }
 
     match /schools/{schoolId} {
       allow read: if true;
-      allow write: if isSignedIn() && getStaff().role == 'Administrador';
+      allow write: if isSignedIn() && getStaffData().role == 'Administrador';
     }
 
     match /staff_roles/{userId} {
@@ -24,51 +31,44 @@ service cloud.firestore {
     }
 
     match /students/{studentId} {
-      allow read: if isSignedIn() && resource.data.schoolId == getStaff().schoolId;
-      allow write: if isSignedIn() && (getStaff().role == 'Administrador' || getStaff().role == 'Academico');
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isStaff();
       
       match /payments/{paymentId} {
         allow read: if isSignedIn();
-        allow write: if isSignedIn() && (getStaff().role == 'Administrador' || getStaff().role == 'Academico');
+        allow write: if isSignedIn() && isStaff();
       }
     }
 
     match /psychology_reports/{reportId} {
-      // Regla optimizada para permitir listados basados en schoolId
-      allow list: if isSignedIn() && (getStaff().role == 'Administrador' || getStaff().role == 'Academico');
-      allow get: if isSignedIn() && resource.data.schoolId == getStaff().schoolId;
+      // Permitir listado si el usuario está autenticado y es staff
+      allow list: if isSignedIn() && isStaff();
+      // Validar acceso individual por escuela
+      allow get: if isSignedIn() && resource.data.schoolId == getStaffData().schoolId;
       
-      allow create: if isSignedIn() && 
-                      request.resource.data.schoolId == getStaff().schoolId && 
-                      (getStaff().role == 'Administrador' || getStaff().role == 'Academico');
-      
-      allow update: if isSignedIn() && 
-                      resource.data.schoolId == getStaff().schoolId && 
-                      (getStaff().role == 'Administrador' || getStaff().role == 'Academico');
-      
-      allow delete: if isSignedIn() && 
-                      resource.data.schoolId == getStaff().schoolId && 
-                      getStaff().role == 'Administrador';
+      allow create: if isSignedIn() && isStaff() && request.resource.data.schoolId == getStaffData().schoolId;
+      allow update: if isSignedIn() && isStaff() && resource.data.schoolId == getStaffData().schoolId;
+      allow delete: if isSignedIn() && getStaffData().role == 'Administrador';
     }
 
     match /attendance/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.schoolId == getStaff().schoolId);
-      allow write: if isSignedIn() && (getStaff().role == 'Administrador' || getStaff().role == 'Academico');
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isStaff();
     }
 
     match /grades/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.schoolId == getStaff().schoolId);
-      allow write: if isSignedIn() && (getStaff().role == 'Administrador' || getStaff().role == 'Academico');
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isStaff();
     }
 
     match /fee_types/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.schoolId == getStaff().schoolId);
-      allow write: if isSignedIn() && getStaff().role == 'Administrador';
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && getStaffData().role == 'Administrador';
     }
     
     match /schedules/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.schoolId == getStaff().schoolId);
-      allow write: if isSignedIn() && (getStaff().role == 'Administrador' || getStaff().role == 'Academico');
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isStaff();
     }
   }
 }

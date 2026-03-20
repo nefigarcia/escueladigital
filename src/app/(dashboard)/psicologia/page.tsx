@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -35,7 +36,10 @@ export default function PsicologiaPage() {
 
   const studentsQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.schoolId) return null
-    return query(collection(firestore, "students"), where("schoolId", "==", profile.schoolId))
+    return query(
+      collection(firestore, "students"), 
+      where("schoolId", "==", profile.schoolId)
+    )
   }, [firestore, profile])
   const { data: students } = useCollection(studentsQuery)
 
@@ -47,7 +51,7 @@ export default function PsicologiaPage() {
       orderBy("createdAt", "desc")
     )
   }, [firestore, profile])
-  const { data: pastReports } = useCollection(reportsQuery)
+  const { data: pastReports, isLoading: isLoadingReports } = useCollection(reportsQuery)
 
   const handleGenerate = async () => {
     if (!formData.studentId || !formData.observations) {
@@ -207,7 +211,11 @@ export default function PsicologiaPage() {
 
         <TabsContent value="historial">
           <div className="grid gap-4">
-            {pastReports?.length ? pastReports.map((report) => (
+            {isLoadingReports ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : pastReports?.length ? pastReports.map((report) => (
               <Card key={report.id} className="border-none shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
