@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useUser, useDoc, useFirestore, updateDocumentNonBlocking } from "@/firebase"
 import { doc, serverTimestamp } from "firebase/firestore"
-import { User, School, Save, Shield, BadgeCheck, Camera, Loader2, X, MapPin, Signature, Clock } from "lucide-react"
+import { User, School, Save, Shield, BadgeCheck, Camera, Loader2, X, MapPin, Signature, Clock, CreditCard } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
@@ -53,6 +53,7 @@ export default function ConfiguracionPage() {
     adminSignatureUrl: "",
     recessStart: "10:30",
     recessEnd: "11:00",
+    stripeAccountId: "",
   })
 
   // Sync forms when data loads
@@ -75,6 +76,7 @@ export default function ConfiguracionPage() {
         adminSignatureUrl: school.adminSignatureUrl || "",
         recessStart: school.recessStart || "10:30",
         recessEnd: school.recessEnd || "11:00",
+        stripeAccountId: school.stripeAccountId || "",
       })
     }
   }, [school])
@@ -299,6 +301,28 @@ export default function ConfiguracionPage() {
               </Card>
 
               <div className="space-y-6">
+                <Card className="border-none shadow-md border-l-4 border-l-emerald-500">
+                  <CardHeader>
+                    <CardTitle className="font-headline text-xl flex items-center gap-2">
+                      <CreditCard className="h-5 w-5 text-emerald-600" /> Cuenta de Cobro (Stripe)
+                    </CardTitle>
+                    <CardDescription>Vincula tu cuenta de Stripe Connect para recibir pagos directos.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Stripe Account ID</Label>
+                      <Input 
+                        placeholder="Ej. acct_1..." 
+                        value={schoolForm.stripeAccountId}
+                        onChange={(e) => setSchoolForm({...schoolForm, stripeAccountId: e.target.value})}
+                      />
+                      <p className="text-[10px] text-muted-foreground italic">
+                        Este ID permite que el dinero de los alumnos se deposite directamente en tu cuenta bancaria configurada en Stripe.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <Card className="border-none shadow-md">
                   <CardHeader>
                     <CardTitle className="font-headline text-xl flex items-center gap-2">
@@ -360,9 +384,6 @@ export default function ConfiguracionPage() {
                         />
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground italic bg-muted/30 p-2 rounded">
-                      Este horario bloqueará la creación de clases durante este periodo para evitar traslapes.
-                    </p>
                   </CardContent>
                 </Card>
               </div>

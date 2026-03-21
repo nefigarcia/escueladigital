@@ -244,7 +244,7 @@ export default function PagosPage() {
   const totalToPay = items.reduce((sum, it) => sum + (it.amount || 0), 0)
   
   // Lógica de Matemática Financiera para Saldo Pendiente
-  // Saldo Restante = Saldo Actual + (Suma de Bases de Tarifas del catálogo - Suma de Montos Pagados de esas tarifas)
+  // Saldo Restante = Saldo Actual + (Suma de Diferencias entre lo que se debería pagar y lo pagado)
   const debtDelta = items.reduce((acc, item) => {
     const base = item.type === 'fee' ? (item.baseAmount || 0) : (item.amount || 0);
     const paid = item.amount || 0;
