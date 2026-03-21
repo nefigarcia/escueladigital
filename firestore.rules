@@ -4,30 +4,25 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * Escuela Digital MX - Reglas de Seguridad Centralizadas
+     * Escuela Digital MX - Reglas de Seguridad Robustas
      */
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Obtener datos del perfil del usuario (staff o alumno)
-    function getProfileData() {
+    // Obtener datos del perfil de forma segura
+    function getProfile() {
       return get(/databases/$(database)/documents/staff_roles/$(request.auth.uid)).data;
     }
 
     function isStaff() {
-      let role = getProfileData().role;
-      return role == 'Administrador' || role == 'Academico';
+      let profile = getProfile();
+      return profile.role == 'Administrador' || profile.role == 'Academico';
     }
 
     function isAdmin() {
-      return getProfileData().role == 'Administrador';
-    }
-
-    // Regla para validar que el recurso pertenece a la misma escuela que el usuario
-    function isSameSchool(schoolId) {
-      return schoolId == getProfileData().schoolId;
+      return getProfile().role == 'Administrador';
     }
 
     match /schools/{schoolId} {
@@ -41,7 +36,7 @@ service cloud.firestore {
     }
 
     match /students/{studentId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (getProfile().schoolId == resource.data.schoolId || request.auth.uid == studentId);
       allow write: if isSignedIn() && isStaff();
       
       match /payments/{paymentId} {
@@ -51,22 +46,20 @@ service cloud.firestore {
     }
 
     match /psychology_reports/{reportId} {
-      // Permitir listado solo si se filtra por la escuela del usuario staff
-      allow list: if isSignedIn() && isStaff() && request.query.filters.schoolId == getProfileData().schoolId;
-      
-      // Permitir lectura individual y escritura si coincide la escuela
-      allow get: if isSignedIn() && isStaff() && isSameSchool(resource.data.schoolId);
-      allow create, update: if isSignedIn() && isStaff() && isSameSchool(request.resource.data.schoolId);
+      // Regla de lectura unificada para listado y lectura individual
+      // En operaciones de listado, Firestore exige que la consulta tenga el filtro schoolId
+      allow read: if isSignedIn() && isStaff() && resource.data.schoolId == getProfile().schoolId;
+      allow create, update: if isSignedIn() && isStaff() && request.resource.data.schoolId == getProfile().schoolId;
       allow delete: if isSignedIn() && isAdmin();
     }
 
     match /attendance/{id} {
-      allow read: if isSignedIn() && isSameSchool(resource.data.schoolId);
+      allow read: if isSignedIn() && resource.data.schoolId == getProfile().schoolId;
       allow write: if isSignedIn() && isStaff();
     }
 
     match /grades/{id} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (resource == null || resource.data.schoolId == getProfile().schoolId);
       allow write: if isSignedIn() && isStaff();
     }
 

@@ -234,9 +234,6 @@ export default function PagosPage() {
             }
           }
         }
-        if (item.type === 'custom') {
-            updated.baseAmount = updated.amount;
-        }
         return updated
       }
       return item
@@ -246,9 +243,14 @@ export default function PagosPage() {
 
   const totalToPay = items.reduce((sum, it) => sum + (it.amount || 0), 0)
   
+  // Lógica de Matemática Financiera para Saldo Pendiente
   const debtDelta = items.reduce((acc, item) => {
+    // Si es una tarifa del catálogo, calculamos la diferencia entre lo que debería pagar y lo que paga
+    // Si paga menos de la base, la diferencia aumenta la deuda.
     const base = item.type === 'fee' ? (item.baseAmount || 0) : (item.amount || 0);
     const paid = item.amount || 0;
+    
+    // Si es tipo 'custom' (Otro), el base es igual al paid, por lo que delta es 0 (no afecta deuda futura)
     return acc + (base - paid);
   }, 0);
 
@@ -272,7 +274,7 @@ export default function PagosPage() {
         paymentDate: paymentDate,
         paymentMethod: paymentMethod,
         receivedFrom: receivedFrom,
-        remainingBalanceAfterThis: remainingBalanceAfterThis,
+        remainingBalanceAfterThis: remainingBalanceAfterThis, // Guardamos el saldo resultante en la transaccion
         status: 'completado',
         createdAt: serverTimestamp(),
       }
@@ -366,6 +368,7 @@ export default function PagosPage() {
     if (!firestore || !paymentToEdit || !activeStudentId || !activeStudent) return
 
     try {
+      // Revertir el balance calculado de esta transaccion
       const paymentItems = paymentToEdit.items || []
       const pDelta = paymentItems.reduce((acc: number, item: any) => {
         const base = item.type === 'fee' ? (item.baseAmount || 0) : (item.amount || 0)
@@ -396,16 +399,19 @@ export default function PagosPage() {
 
   return (
     <div className="space-y-6">
+      {/* PDF TEMPLATE (HIDDEN) */}
       <div className="fixed -left-[4000px] top-0">
         <div ref={pdfTemplateRef} className="w-[210mm] p-[15mm] bg-white text-black font-serif min-h-[297mm] relative overflow-hidden">
           {pdfData && (
             <>
+              {/* Marca de Agua */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.08] select-none">
                 <div className="text-[140px] font-black text-rose-600 border-[16px] border-rose-600 px-10 py-4 -rotate-[35deg] tracking-widest uppercase">
                   PAGADO
                 </div>
               </div>
 
+              {/* Encabezado */}
               <div className="flex justify-between items-start mb-10 relative z-10">
                 <div className="w-1/3">
                   {pdfData.school.logoUrl ? (
@@ -423,6 +429,7 @@ export default function PagosPage() {
 
               <div className="h-[2px] bg-black/80 w-full mb-8" />
 
+              {/* Datos de Transaccion */}
               <div className="flex justify-between items-start mb-8 relative z-10">
                 <div>
                   <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-1">Recibo de Pago</h2>
@@ -434,6 +441,7 @@ export default function PagosPage() {
                 </div>
               </div>
 
+              {/* Datos del Alumno */}
               <div className="grid grid-cols-1 gap-y-4 mb-10 relative z-10 border-y border-black/5 py-6">
                 <div className="flex items-baseline border-b border-black/5 pb-2">
                   <span className="text-sm font-bold uppercase w-32 shrink-0">Recibí de:</span>
@@ -455,6 +463,7 @@ export default function PagosPage() {
                 </div>
               </div>
 
+              {/* Desglose */}
               <div className="mb-10 relative z-10">
                 <h2 className="text-sm font-bold uppercase tracking-widest mb-4">Desglose de Conceptos:</h2>
                 <div className="space-y-3 px-4">
@@ -467,6 +476,7 @@ export default function PagosPage() {
                 </div>
               </div>
 
+              {/* Totales */}
               <div className="bg-slate-50/50 p-8 rounded-2xl border border-black/10 mb-16 relative z-10">
                 <div className="flex justify-between items-center mb-6">
                   <span className="text-2xl font-bold uppercase tracking-tight text-muted-foreground">Total Pagado:</span>
@@ -483,6 +493,7 @@ export default function PagosPage() {
                 </div>
               </div>
 
+              {/* Firma */}
               <div className="mt-auto pt-20 text-center relative z-10">
                 <div className="inline-block border-t border-black/40 px-20 pt-2">
                   {pdfData.school.adminSignatureUrl ? (
@@ -764,6 +775,7 @@ export default function PagosPage() {
         </div>
       </div>
 
+      {/* DIALOGO DE EDICION / ELIMINACION */}
       <Dialog open={isEditPaymentOpen} onOpenChange={setIsEditPaymentOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
