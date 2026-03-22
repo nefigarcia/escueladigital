@@ -60,6 +60,10 @@
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.24.2"
   },
+  "overrides": {
+    "rimraf": "^4.0.0",
+    "glob": "^10.0.0"
+  },
   "devDependencies": {
     "@types/node": "^20",
     "@types/papaparse": "^5.3.14",
