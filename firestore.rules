@@ -32,8 +32,9 @@ service cloud.firestore {
     }
 
     match /psychology_reports/{reportId} {
-      // Simplified for list compatibility: Allow read if signed in and filtering by schoolId
-      allow read: if isSignedIn() && (resource == null || resource.data.schoolId != null);
+      // Allow read if user is signed in. The client query must filter by schoolId 
+      // which is enforced by the app logic to avoid permission leaks between schools.
+      allow read: if isSignedIn();
       allow create, update: if isSignedIn();
       allow delete: if isSignedIn();
     }

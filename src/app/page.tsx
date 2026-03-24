@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from "next/link"
@@ -136,7 +137,7 @@ export default function LandingPage() {
             <Button variant="ghost" size="sm">Entrar</Button>
           </Link>
           <Link href="/plans">
-            <Button size="sm">Registrarse</Button>
+            <Button size="sm">Prueba Gratis</Button>
           </Link>
         </nav>
       </header>
