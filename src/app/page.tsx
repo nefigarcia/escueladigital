@@ -4,7 +4,6 @@ import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { GraduationCap, ShieldCheck, CreditCard, Sparkles, ArrowRight, CheckCircle2, Brain } from "lucide-react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 
 function FeatureCard({
   icon,
@@ -44,7 +43,6 @@ function FeatureCard({
         transition-all duration-500 group cursor-default
         ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
     >
-      {/* Icon bubble */}
       <div className={`p-3 rounded-full transition-colors duration-300 ${iconBgClass}`}>
         <div className={iconAnimClass}>{icon}</div>
       </div>
@@ -62,7 +60,6 @@ function ScrollVideo() {
     const video = videoRef.current
     if (!video) return
 
-    // Preload metadata so duration is available immediately
     video.preload = "auto"
     video.muted = true
     video.playsInline = true
@@ -76,7 +73,6 @@ function ScrollVideo() {
       const sectionHeight = section.offsetHeight
       const viewportHeight = window.innerHeight
 
-      // Progress from 0 (video start) to 1 (video end) as section scrolls past
       const scrolled = window.scrollY - sectionTop
       const scrollable = sectionHeight - viewportHeight
       const progress = Math.max(0, Math.min(1, scrolled / scrollable))
@@ -85,26 +81,21 @@ function ScrollVideo() {
     }
 
     window.addEventListener("scroll", handleScroll, { passive: true })
-    // Run once on mount in case user is mid-page on refresh
     handleScroll()
 
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
   return (
-    /* Tall section gives scroll "room" — sticky video stays in view */
     <section
       ref={sectionRef}
       className="relative h-[400vh] bg-gradient-to-b from-white to-primary/5"
     >
-      {/* Sticky container */}
       <div className="sticky top-0 h-screen w-full flex flex-col items-center justify-center overflow-hidden">
-        {/* Label */}
         <p className="absolute top-6 left-1/2 -translate-x-1/2 z-10 text-sm font-medium text-primary/70 tracking-widest uppercase">
           Un día en Escuela Digital
         </p>
 
-        {/* Video — fills most of the viewport on every screen size */}
         <video
           ref={videoRef}
           src="/videos/Animated_School_Day_STEM_Fun.mp4"
@@ -115,7 +106,6 @@ function ScrollVideo() {
           preload="auto"
         />
 
-        {/* Scroll cue — fades out after user starts scrolling via CSS */}
         <p className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 text-xs text-muted-foreground animate-bounce">
           ↓ Desplázate para ver la acción
         </p>
@@ -145,7 +135,7 @@ export default function LandingPage() {
           <Link href="/login" className="sm:hidden">
             <Button variant="ghost" size="sm">Entrar</Button>
           </Link>
-          <Link href="/register">
+          <Link href="/plans">
             <Button size="sm">Registrarse</Button>
           </Link>
         </nav>
@@ -167,12 +157,12 @@ export default function LandingPage() {
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
-                <Link href="/register" className="w-full sm:w-auto">
+                <Link href="/plans" className="w-full sm:w-auto">
                   <Button size="lg" className="w-full sm:w-auto px-8 h-12 text-base sm:text-lg gap-2">
                     Comenzar Ahora <ArrowRight className="h-5 w-5" />
                   </Button>
                 </Link>
-                <Link href="#pricing" className="w-full sm:w-auto">
+                <Link href="/plans" className="w-full sm:w-auto">
                   <Button variant="outline" size="lg" className="w-full sm:w-auto px-8 h-12 text-base sm:text-lg">
                     Ver Planes
                   </Button>
@@ -237,94 +227,6 @@ export default function LandingPage() {
                   iconBgClass={iconBgClass}
                 />
               ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── Pricing ── */}
-        <section id="pricing" className="w-full py-12 md:py-24 lg:py-32 bg-muted/20">
-          <div className="container px-4 md:px-6 mx-auto">
-            <div className="flex flex-col items-center space-y-4 text-center mb-12">
-              <h2 className="text-3xl font-headline font-bold tracking-tighter sm:text-5xl">
-                Planes y Precios
-              </h2>
-              <p className="max-w-[600px] text-muted-foreground text-sm sm:text-base">
-                Elige el plan que mejor se adapte al tamaño de tu institución.
-              </p>
-            </div>
-
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
-              {/* Basic */}
-              <Card className="flex flex-col border-none shadow-lg">
-                <CardHeader>
-                  <CardTitle className="font-headline text-2xl">Básico</CardTitle>
-                  <CardDescription>Ideal para preescolares y estancias pequeñas.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1">
-                  <div className="mb-4">
-                    <span className="text-4xl font-bold">$499</span>
-                    <span className="text-muted-foreground">/mes</span>
-                  </div>
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> Hasta 100 alumnos</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> Gestión de pagos básica</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> Horarios y Asistencia</li>
-                    <li className="flex items-center gap-2 text-muted-foreground"><CheckCircle2 className="h-4 w-4 opacity-20 shrink-0" /> Asistente IA (Limitado)</li>
-                  </ul>
-                </CardContent>
-                <CardFooter>
-                  <Button className="w-full" variant="outline">Comenzar Gratis</Button>
-                </CardFooter>
-              </Card>
-
-              {/* Pro */}
-              <Card className="flex flex-col border-2 border-primary shadow-2xl relative">
-                <div className="absolute top-0 right-0 bg-primary text-white px-3 py-1 rounded-bl-lg text-[10px] font-bold uppercase tracking-widest">
-                  Recomendado
-                </div>
-                <CardHeader>
-                  <CardTitle className="font-headline text-2xl">Profesional</CardTitle>
-                  <CardDescription>Gestión completa con Inteligencia Artificial.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1">
-                  <div className="mb-4">
-                    <span className="text-4xl font-bold">$999</span>
-                    <span className="text-muted-foreground">/mes</span>
-                  </div>
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> Hasta 500 alumnos</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> Asistente IA de Comunicación</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> Módulo de Psicología con IA</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> Recibos PDF ilimitados</li>
-                  </ul>
-                </CardContent>
-                <CardFooter>
-                  <Button className="w-full">Seleccionar Plan Pro</Button>
-                </CardFooter>
-              </Card>
-
-              {/* Enterprise — full width on 2-col grid, centered on its own row */}
-              <Card className="flex flex-col border-none shadow-lg sm:col-span-2 lg:col-span-1">
-                <CardHeader>
-                  <CardTitle className="font-headline text-2xl">Institucional</CardTitle>
-                  <CardDescription>Para redes de escuelas y grandes planteles.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1">
-                  <div className="mb-4">
-                    <span className="text-4xl font-bold">$1,999</span>
-                    <span className="text-muted-foreground">/mes</span>
-                  </div>
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> Alumnos ilimitados</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> Soporte prioritario 24/7</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> Multi-plantel y Auditoría</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> Personalización total (White label)</li>
-                  </ul>
-                </CardContent>
-                <CardFooter>
-                  <Button className="w-full" variant="outline">Contactar Ventas</Button>
-                </CardFooter>
-            </Card>
             </div>
           </div>
         </section>
